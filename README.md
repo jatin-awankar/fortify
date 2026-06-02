@@ -1,6 +1,6 @@
 ﻿# Fortify &middot; [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jatin-awankar/fortify/blob/main/LICENSE)
 
-Fortify is a developer-focused terminal assistant that helps you explain errors, generate commit messages, summarize codebases, and streamline daily workflows directly from the CLI.
+Fortify (`fortify-ai-cli`) is a developer-focused terminal assistant that helps you explain errors, generate commit messages, summarize codebases, and streamline daily workflows directly from the CLI.
 
 Built for developers who live in the terminal.
 
