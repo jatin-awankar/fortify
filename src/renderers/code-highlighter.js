@@ -17,6 +17,20 @@ export function highlightCodeLine(line, { language = "", chalk } = {}) {
   }
 
   const trimmedLanguage = language.trim().toLowerCase();
+
+  if (trimmedLanguage === "diff") {
+    if (line.startsWith("+")) {
+      return chalk.green(line);
+    }
+    if (line.startsWith("-")) {
+      return chalk.red(line);
+    }
+    if (line.startsWith("@@")) {
+      return chalk.cyan(line);
+    }
+    return chalk.gray(line);
+  }
+
   const supportsKeywordHighlight = [
     "js",
     "javascript",

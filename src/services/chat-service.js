@@ -7,6 +7,7 @@ import {
   isAbortLikeError
 } from "../utils/operation-cancellation.js";
 import { OpenAIService } from "./openai/index.js";
+import { ProviderFactory } from "./provider-factory.js";
 import { ProjectContextService } from "./project-context-service.js";
 import { loadConfig } from "../config/index.js";
 import { stat, readFile, readdir } from "node:fs/promises";
@@ -23,6 +24,7 @@ function normalizeSessionId(sessionId) {
 export class ChatService {
   constructor({
     openAIService = new OpenAIService(),
+    providerFactory = new ProviderFactory(),
     conversationStore = new InMemoryConversationStore(),
     historyStore = new LocalHistoryStore(),
     renderer = new ChatSessionRenderer(),
@@ -34,6 +36,7 @@ export class ChatService {
     signalProcess = process
   } = {}) {
     this.openAIService = openAIService;
+    this.providerFactory = providerFactory;
     this.conversationStore = conversationStore;
     this.historyStore = historyStore;
     this.renderer = renderer;
@@ -46,8 +49,28 @@ export class ChatService {
     this.historyPersistenceDisabled = false;
   }
 
+  async resolveSessionId(sessionId) {
+    let resolvedSessionId = normalizeSessionId(sessionId);
+    if (sessionId === "latest") {
+      try {
+        const sessions = await this.historyStore.listSessions();
+        if (sessions.length > 0) {
+          resolvedSessionId = sessions[0].id;
+          if (this.renderer.terminalUI && typeof this.renderer.terminalUI.info === "function") {
+            this.renderer.terminalUI.info(`Resuming latest session '${resolvedSessionId}'`);
+          }
+        } else {
+          resolvedSessionId = "default";
+        }
+      } catch {
+        resolvedSessionId = "default";
+      }
+    }
+    return resolvedSessionId;
+  }
+
   async startInteractiveChat({ mode = "default", sessionId = "" } = {}) {
-    const resolvedSessionId = normalizeSessionId(sessionId);
+    const resolvedSessionId = await this.resolveSessionId(sessionId);
     const existingSession = await this.#loadSessionFromHistory(resolvedSessionId);
     const session = existingSession
       ? this.conversationStore.hydrateSession(existingSession)
@@ -132,7 +155,8 @@ export class ChatService {
         generationAbortController = new AbortController();
 
         try {
-          const stream = this.openAIService.streamResponse({
+          const providerService = await this.providerFactory.getProvider();
+          const stream = providerService.streamResponse({
             input: responseInput,
             signal: generationAbortController.signal,
             onModelFallback: ({ fromModel, toModel }) => {

@@ -1,3 +1,8 @@
+import { spawn } from "node:child_process";
+import { readFile, unlink, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { loadConfig } from "../config/index.js";
 import {
   buildCommitMessageInput,
   buildCommitMessageInstructions
@@ -37,17 +42,23 @@ export class CommitService {
     gitService = new GitService(),
     openAIService = new OpenAIService(),
     projectContextService = new ProjectContextService(),
+    configLoader = loadConfig,
+    fsPromises = { writeFile, readFile, unlink },
+    childSpawner = spawn,
     renderer = new CommitRenderer(),
     signalProcess = process
   } = {}) {
     this.gitService = gitService;
     this.openAIService = openAIService;
     this.projectContextService = projectContextService;
+    this.configLoader = configLoader;
+    this.fs = fsPromises;
+    this.childSpawner = childSpawner;
     this.renderer = renderer;
     this.signalProcess = signalProcess;
   }
 
-  async runCommitFlow({ style = "conventional", scope = "", autoCommit = false, dryRun = false } = {}) {
+  async runCommitFlow({ style = "conventional", scope = "", autoCommit = false, dryRun = false, interactive = false, validate = false } = {}) {
     const isRepository = await this.gitService.isGitRepository();
 
     if (!isRepository) {
@@ -68,7 +79,8 @@ export class CommitService {
     const stagedDiffSummary = await this.gitService.getStagedDiffSummary();
     this.renderer.showContext({ branchName, style, scope });
     this.renderer.showDiffSummary(stagedDiffSummary);
-    const { controller: generationController, cleanup: cleanupCancellation } = createCancellationController({
+
+    const { controller: generationController, cleanup: cleanupCancellation } = createCancellationController({
       signalProcess: this.signalProcess,
       cancelMessage: "Commit generation cancelled by Ctrl+C."
     });
@@ -96,10 +108,31 @@ export class CommitService {
         signal: generationController.signal
       });
 
-      const commitMessage = normalizeCommitMessage(rawMessage);
+      let commitMessage = normalizeCommitMessage(rawMessage);
       if (!commitMessage) {
         this.renderer.showError("Generated commit message was empty.");
         return { ok: false, reason: "empty_message" };
+      }
+
+      if (interactive) {
+        commitMessage = await this.#editMessageInEditor(commitMessage);
+        if (!commitMessage) {
+          this.renderer.showError("Edited commit message was empty. Commit aborted.");
+          return { ok: false, reason: "empty_message" };
+        }
+      }
+
+      if (validate || style === "conventional") {
+        const isValid = this.#validateConventionalCommit(commitMessage);
+        if (!isValid) {
+          const warningMsg = "Commit message does not match Conventional Commits format (e.g., 'feat: message' or 'fix(scope): message').";
+          if (validate) {
+            this.renderer.showError(warningMsg);
+            return { ok: false, reason: "invalid_commit_format" };
+          } else if (typeof this.renderer.showWarning === "function") {
+            this.renderer.showWarning(warningMsg);
+          }
+        }
       }
 
       this.renderer.showResolvedMessage(commitMessage);
@@ -138,5 +171,71 @@ export class CommitService {
     } finally {
       cleanupCancellation();
     }
+  }
+
+  async #editMessageInEditor(initialMessage) {
+    let config;
+    try {
+      config = await this.configLoader();
+    } catch {
+      config = null;
+    }
+    const editorSetting = config?.editor || process.env.VISUAL || process.env.EDITOR;
+    
+    let editorCmd = editorSetting;
+    if (!editorCmd) {
+      editorCmd = process.platform === "win32" ? "notepad" : "nano";
+    }
+
+    const tempDir = os.tmpdir();
+    const tempFile = path.join(tempDir, `FORTIFY_EDITMSG_${Date.now()}.txt`);
+
+    try {
+      await this.fs.writeFile(tempFile, initialMessage, "utf8");
+      
+      const parts = editorCmd.split(" ");
+      const bin = parts[0];
+      const args = [...parts.slice(1), tempFile];
+
+      if (this.renderer.terminalUI && typeof this.renderer.terminalUI.info === "function") {
+        this.renderer.terminalUI.info(`Opening editor (${editorCmd})...`);
+      }
+
+      await new Promise((resolve, reject) => {
+        const child = this.childSpawner(bin, args, {
+          stdio: "inherit",
+          windowsHide: false
+        });
+
+        child.on("error", (err) => reject(err));
+        child.on("close", (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`Editor process exited with code ${code}`));
+          }
+        });
+      });
+
+      const editedContent = await this.fs.readFile(tempFile, "utf8");
+      return normalizeCommitMessage(editedContent);
+    } catch (err) {
+      if (typeof this.renderer.showError === "function") {
+        this.renderer.showError(`Failed to edit message in editor: ${err.message}`);
+      }
+      return initialMessage;
+    } finally {
+      try {
+        await this.fs.unlink(tempFile);
+      } catch {
+        // ignore cleanup error
+      }
+    }
+  }
+
+  #validateConventionalCommit(message) {
+    const firstLine = message.split("\n")[0].trim();
+    const conventionalRegex = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_-]+\))?: .+/;
+    return conventionalRegex.test(firstLine);
   }
 }

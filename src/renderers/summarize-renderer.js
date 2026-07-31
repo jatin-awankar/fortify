@@ -1,26 +1,50 @@
+import ora from "ora";
 import { createTerminalUI } from "./terminal-ui.js";
 import { MarkdownTerminalRenderer } from "./markdown-terminal-renderer.js";
 
 export class SummarizeRenderer {
   constructor({
     terminalUI = createTerminalUI(),
-    markdownRenderer = new MarkdownTerminalRenderer({ terminalUI })
+    markdownRenderer = new MarkdownTerminalRenderer({ terminalUI }),
+    oraFactory = ora
   } = {}) {
     this.terminalUI = terminalUI;
     this.markdownRenderer = markdownRenderer;
+    this.oraFactory = oraFactory;
+    this.spinner = null;
   }
 
   showStart({ sourcePath }) {
     this.terminalUI.divider("Project Summarizer");
     this.terminalUI.info(`Target: ${sourcePath}`);
+    if (this.terminalUI.capabilities && this.terminalUI.capabilities.isInteractive) {
+      try {
+        this.spinner = this.oraFactory({
+          text: "Scanning workspace files...",
+          color: "cyan"
+        }).start();
+      } catch {
+        this.spinner = null;
+      }
+    }
   }
 
   showDiscovery({ fileCount }) {
-    this.terminalUI.info(`Discovered ${fileCount} text/code files.`);
+    if (this.spinner) {
+      this.spinner.succeed(`Discovered ${fileCount} text/code files.`);
+      this.spinner = null;
+    } else {
+      this.terminalUI.info(`Discovered ${fileCount} text/code files.`);
+    }
   }
 
   showNoFilesFound() {
-    this.terminalUI.warning("No supported text/code files found at the target path.");
+    if (this.spinner) {
+      this.spinner.fail("No supported text/code files found at the target path.");
+      this.spinner = null;
+    } else {
+      this.terminalUI.warning("No supported text/code files found at the target path.");
+    }
   }
 
   showTokenGuardNotice(message) {
@@ -47,7 +71,12 @@ export class SummarizeRenderer {
   }
 
   showError(message) {
-    this.terminalUI.error(message);
+    if (this.spinner) {
+      this.spinner.fail(message);
+      this.spinner = null;
+    } else {
+      this.terminalUI.error(message);
+    }
   }
 
   showDone() {

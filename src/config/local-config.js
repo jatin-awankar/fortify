@@ -8,8 +8,13 @@ const CONFIG_FILE_NAME = "config.json";
 const API_KEY_ENV_NAME = "OPENAI_API_KEY";
 
 const DEFAULT_CONFIG = {
+  provider: "openai",
   apiKeys: {
     openai: "",
+    anthropic: "",
+  },
+  endpoints: {
+    ollama: "http://localhost:11434",
   },
   modelPreferences: {
     defaultModel: "gpt-5.4",

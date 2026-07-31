@@ -46,6 +46,8 @@ export class CommandService {
       scope: input?.scope ?? "",
       autoCommit: Boolean(input?.yes),
       dryRun: Boolean(input?.dryRun),
+      interactive: Boolean(input?.interactive),
+      validate: Boolean(input?.validate),
     });
 
     this.#completeResult(result);

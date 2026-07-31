@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0
+
+- Added `fortify init` command for workspace initialization and `.fortify/project.json` creation.
+- Added stack signature scanning for Node.js, Python, Rust, Go, and Java workspace auto-detection.
+- Added smart `@filepath` prompt attachments with size limits and tab-autocomplete in interactive chat.
+- Added interactive commit message editing (`fortify commit -i`) via `$EDITOR`, `$VISUAL`, or visual IDE fallback (`code --wait`).
+- Added Conventional Commits format validation (`fortify commit --validate`).
+- Added persistent session resume (`fortify chat --resume`).
+- Added pluggable multi-provider support for OpenAI, Anthropic (Claude), and local Ollama API endpoints.
+- Added terminal diff color highlighting (`+` green, `-` red, `@@` cyan) and `ora` loading spinner in summarizer.
+
 ## 0.3.0
 
 - Added a real Node `node:test` suite for config, OpenAI service behavior, git service behavior, command service behavior, and CLI smoke coverage.
