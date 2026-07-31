@@ -48,27 +48,27 @@ Fortify is built to stand among the **Top 1% developer CLI tools**. Unlike gener
 ```mermaid
 flowchart TD
     subgraph CLI ["Fortify Core CLI"]
-        Entry[bin/fortify.js] --> Loader[Command Loader]
-        Loader --> Services[Command Services]
+        Entry["bin/fortify.js"] --> Loader["Command Loader"]
+        Loader --> Services["Command Services"]
     end
 
     subgraph Context ["Repository Context Engine"]
-        Services --> ContextService[ProjectContextService]
-        ContextService --> Detect[Stack Signatures & Git Summary]
-        Services --> PluginService[PluginService]
-        PluginService --> LocalPlugins[.fortify/plugins & rules.md]
+        Services --> ContextService["ProjectContextService"]
+        ContextService --> Detect["Stack Signatures & Git Summary"]
+        Services --> PluginService["PluginService"]
+        PluginService --> LocalPlugins[".fortify/plugins & rules.md"]
     end
 
     subgraph Providers ["Pluggable AI Provider Factory"]
-        Services --> Factory[ProviderFactory]
-        Factory --> OpenAI[OpenAIService]
-        Factory --> Anthropic[AnthropicService]
-        Factory --> Ollama[OllamaService (Local LLM)]
+        Services --> Factory["ProviderFactory"]
+        Factory --> OpenAI["OpenAIService"]
+        Factory --> Anthropic["AnthropicService"]
+        Factory --> Ollama["OllamaService (Local LLM)"]
     end
 
     subgraph Renderer ["Terminal UX & Renderers"]
-        Services --> TUI[TerminalUI & Chalk]
-        TUI --> Output[Stream & Table Formatting]
+        Services --> TUI["TerminalUI & Chalk"]
+        TUI --> Output["Stream & Table Formatting"]
     end
 ```
 
