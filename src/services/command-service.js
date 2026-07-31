@@ -6,6 +6,7 @@ import { ExplainService } from "./explain-service.js";
 import { HistoryService } from "./history-service.js";
 import { SummarizeService } from "./summarize-service.js";
 import { InitService } from "./init-service.js";
+import { PluginService } from "./plugin-service.js";
 import { normalizeErrorForOutput } from "../utils/error-normalizer.js";
 import { USER_CANCELLED_EXIT_CODE } from "../utils/operation-cancellation.js";
 import { getRuntimeOptions } from "../utils/runtime-options.js";
@@ -20,6 +21,7 @@ export class CommandService {
     historyService = new HistoryService(),
     summarizeService = new SummarizeService(),
     initService = new InitService(),
+    pluginService = new PluginService(),
   } = {}) {
     this.authService = authService;
     this.chatService = chatService;
@@ -29,6 +31,7 @@ export class CommandService {
     this.historyService = historyService;
     this.summarizeService = summarizeService;
     this.initService = initService;
+    this.pluginService = pluginService;
   }
 
   async explain(input) {
@@ -114,6 +117,54 @@ export class CommandService {
         ? { ok: true, authenticated: true }
         : { ok: false, reason: "auth_failed" },
     );
+  }
+
+  async listPlugins() {
+    const plugins = await this.pluginService.listPlugins();
+    const shortcuts = await this.pluginService.getShortcutsMap();
+    if (getRuntimeOptions().json) {
+      this.#completeResult({ ok: true, plugins, shortcuts });
+      return;
+    }
+
+    console.log("🧩 Loaded Workspace Plugins:");
+    if (plugins.length === 0) {
+      console.log("  (No custom plugins or rules.md found in .fortify/)");
+    } else {
+      for (const p of plugins) {
+        console.log(`  - ${p.name} [${p.type}] (${p.path})`);
+      }
+    }
+
+    console.log("\n📌 Registered Prompt Shortcuts:");
+    for (const [sc, exp] of Object.entries(shortcuts)) {
+      console.log(`  ${sc.padEnd(20)} -> ${exp}`);
+    }
+
+    this.#completeResult({ ok: true });
+  }
+
+  async initPluginTemplates() {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const fortifyDir = path.join(process.cwd(), ".fortify");
+    const pluginsDir = path.join(fortifyDir, "plugins");
+
+    await fs.mkdir(pluginsDir, { recursive: true });
+
+    const sampleShortcuts = {
+      shortcuts: {
+        "@security-check": "Perform a security audit on the provided code, looking for OWASP vulnerabilities, injection risks, and unhandled errors.",
+        "@refactor": "Analyze the provided code and suggest clean, modular refactorings prioritizing readability and performance."
+      }
+    };
+    await fs.writeFile(path.join(pluginsDir, "sample-shortcuts.json"), JSON.stringify(sampleShortcuts, null, 2), "utf8");
+
+    const sampleRules = `# Project Custom Rules\n- Maintain clean ESM modules.\n- Ensure all exported functions have input validation.\n`;
+    await fs.writeFile(path.join(fortifyDir, "rules.md"), sampleRules, "utf8");
+
+    console.log("✨ Initialized sample plugins and rules file in .fortify/");
+    this.#completeResult({ ok: true });
   }
 
   #completeResult(result) {

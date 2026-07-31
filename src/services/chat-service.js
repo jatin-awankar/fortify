@@ -9,6 +9,7 @@ import {
 import { OpenAIService } from "./openai/index.js";
 import { ProviderFactory } from "./provider-factory.js";
 import { ProjectContextService } from "./project-context-service.js";
+import { PluginService } from "./plugin-service.js";
 import { loadConfig } from "../config/index.js";
 import { stat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
@@ -29,6 +30,7 @@ export class ChatService {
     historyStore = new LocalHistoryStore(),
     renderer = new ChatSessionRenderer(),
     projectContextService = new ProjectContextService(),
+    pluginService = new PluginService(),
     configLoader = loadConfig,
     fsPromises = { stat, readFile, readdir },
     input = process.stdin,
@@ -41,6 +43,7 @@ export class ChatService {
     this.historyStore = historyStore;
     this.renderer = renderer;
     this.projectContextService = projectContextService;
+    this.pluginService = pluginService;
     this.configLoader = configLoader;
     this.fs = fsPromises;
     this.input = input;
@@ -138,7 +141,8 @@ export class ChatService {
           break;
         }
 
-        const { content: finalContent } = await this.resolveFileAttachments(trimmedInput);
+        const expandedInput = await this.pluginService.expandPromptShortcuts(trimmedInput);
+        const { content: finalContent } = await this.resolveFileAttachments(expandedInput);
 
         this.conversationStore.addMessage(session.id, {
           role: "user",
