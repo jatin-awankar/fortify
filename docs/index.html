@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fortify AI CLI - The Repo-Aware Developer Terminal Assistant</title>
+  <meta name="description" content="AI powered developer-focused CLI for error explanation, git commit generation, codebase summarization, and terminal first workflows.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0b0f19;
+      --bg-card: rgba(17, 24, 39, 0.7);
+      --border-color: rgba(255, 255, 255, 0.1);
+      --accent-cyan: #06b6d4;
+      --accent-violet: #8b5cf6;
+      --accent-green: #10b981;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Gradient Background Accents */
+    .glow-1 {
+      position: absolute;
+      top: -100px;
+      left: 20%;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.2) 0%, rgba(0,0,0,0) 70%);
+      pointer-events: none;
+    }
+    .glow-2 {
+      position: absolute;
+      top: 300px;
+      right: 10%;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, rgba(0,0,0,0) 70%);
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    /* Navbar */
+    header {
+      padding: 2rem 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .logo {
+      font-weight: 800;
+      font-size: 1.5rem;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      margin-left: 2rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    nav a:hover {
+      color: var(--accent-cyan);
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 6rem 0 4rem;
+      text-align: center;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.4rem 1rem;
+      border-radius: 9999px;
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: var(--accent-cyan);
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: 3.5rem;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 1.5rem;
+    }
+    h1 span {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 700px;
+      margin: 0 auto 3rem;
+    }
+
+    /* Command Card Snippet */
+    .cmd-box {
+      background: #111827;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem 2rem;
+      max-width: 550px;
+      margin: 0 auto 4rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'Fira Code', monospace;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    .cmd-box code {
+      color: var(--accent-cyan);
+    }
+    .btn-copy {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn-copy:hover {
+      background: var(--accent-cyan);
+      color: #000;
+    }
+
+    /* Terminal Demo Box */
+    .terminal-window {
+      background: #0d1117;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      max-width: 900px;
+      margin: 0 auto 6rem;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+    .terminal-header {
+      background: #161b22;
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+    .terminal-body {
+      padding: 1.5rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.95rem;
+      text-align: left;
+      line-height: 1.7;
+    }
+    .t-cyan { color: var(--accent-cyan); }
+    .t-green { color: var(--accent-green); }
+    .t-muted { color: var(--text-muted); }
+    .t-yellow { color: #f59e0b; }
+
+    /* Features Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 2rem;
+      margin-bottom: 6rem;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      padding: 2rem;
+      border-radius: 16px;
+      transition: transform 0.3s, border-color 0.3s;
+    }
+    .feature-card:hover {
+      transform: translateY(-5px);
+      border-color: var(--accent-cyan);
+    }
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    .feature-card h3 {
+      font-size: 1.25rem;
+      margin-bottom: 0.75rem;
+    }
+    .feature-card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 3rem 0;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="glow-1"></div>
+  <div class="glow-2"></div>
+
+  <div class="container">
+    <header>
+      <div class="logo">
+        🛡️ Fortify AI CLI
+      </div>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#demo">Demo</a>
+        <a href="https://github.com/jatin-awankar/fortify" target="_blank">GitHub</a>
+        <a href="https://www.npmjs.com/package/fortify-ai-cli" target="_blank">NPM</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="badge">🚀 v0.4.0 Now Released</div>
+      <h1>The Repo-Aware AI Assistant<br><span>Built for Your Terminal</span></h1>
+      <p class="subtitle">Fortify scans your repository stack, auto-detects codebase context, connects to pluggable AI providers, and offers an interactive `$EDITOR` workflow directly in your shell.</p>
+
+      <div class="cmd-box">
+        <code>$ npm install -g fortify-ai-cli</code>
+        <button class="btn-copy" onclick="navigator.clipboard.writeText('npm install -g fortify-ai-cli')">Copy</button>
+      </div>
+
+      <div class="terminal-window" id="demo">
+        <div class="terminal-header">
+          <div class="dot dot-red"></div>
+          <div class="dot dot-yellow"></div>
+          <div class="dot dot-green"></div>
+          <span class="t-muted" style="margin-left: auto; font-size: 0.8rem;">bash - fortify chat</span>
+        </div>
+        <div class="terminal-body">
+          <p class="t-cyan">  ███████╗██████╗ ██████╗ ████████╗██████╗ ███████╗██╗   ██╗</p>
+          <p class="t-cyan">  ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝╚═██╔═╝██╔════╝╚██╗ ██╔╝</p>
+          <p class="t-cyan">  █████╗  ██║   ██║██████╔╝   ██║     ██║  █████╗   ╚████╔╝ </p>
+          <p class="t-cyan">  ██╔══╝  ██║   ██║██╔══██╗   ██║     ██║  ██╔══╝    ╚██╔╝  </p>
+          <p class="t-cyan">  ██║     ╚██████╔╝██║  ██║   ██║   ██████╗██║        ██║   </p>
+          <p class="t-cyan">  ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═════╝╚═╝        ╚═╝   </p>
+          <p class="t-muted">---------------- Fortify v0.4.0 Chat ----------------</p>
+          <p class="t-green">[SUCCESS] Loaded project context: fortify (Node.js)</p>
+          <p><span class="t-cyan">You &gt;</span> Please audit @src/index.js and check @security-check</p>
+          <p>📎 <span class="t-muted">Loaded file: src/index.js (774 bytes)</span></p>
+          <p><span class="t-green">Assistant &gt;</span> I have audited src/index.js against OWASP guidelines...</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <h2 style="text-align: center; font-size: 2.25rem; margin-bottom: 3rem;">Why Developers Choose <span>Fortify</span></h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🧠</div>
+          <h3>Repo-Aware Context</h3>
+          <p>Scans workspace signature files (`package.json`, `Cargo.toml`, `requirements.txt`, `go.mod`) to automatically tailor system prompts to your project stack.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📎</div>
+          <h3>Smart `@file` References</h3>
+          <p>Attach code files directly in prompt queries with `@path/file.js`. Supports size safety limits and readline Tab-autocomplete.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">✏️</div>
+          <h3>Interactive `$EDITOR` Workflow</h3>
+          <p>Draft commit messages with AI, then fine-tune them in your favorite terminal text editor (`code --wait`, `notepad`, `nano`, `vim`) with format validation.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔌</div>
+          <h3>Pluggable Backends</h3>
+          <p>Switch seamlessly between OpenAI, Anthropic Claude 3.5 Sonnet, or local offline Ollama models with a single config flag.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🧩</div>
+          <h3>Extensible Shortcuts & Rules</h3>
+          <p>Define custom prompt shortcuts (e.g. `@security-check`, `@refactor`) in `.fortify/plugins/` and custom project instructions in `.fortify/rules.md`.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎨</div>
+          <h3>Rich Terminal TUI</h3>
+          <p>Enjoy diff syntax color highlighting (`+` green, `-` red), border box status alerts, `ora` spinners, and tabular column alignment.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>© 2026 Fortify AI CLI • Released under the MIT License • Built for Top 1% Engineering Workflows</p>
+    </footer>
+  </div>
+</body>
+</html>

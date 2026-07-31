@@ -1,188 +1,160 @@
-# Fortify
+<div align="center">
 
-[![CI](https://github.com/jatin-awankar/fortify/actions/workflows/ci.yml/badge.svg)](https://github.com/jatin-awankar/fortify/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+# 🛡️ Fortify AI CLI
 
-Fortify (`fortify-ai-cli`) is a terminal-first AI assistant for developers who want help explaining errors, drafting safe commit messages, summarizing code, and keeping local chat history without leaving the shell.
+**The Repo-Aware, Multi-Provider Terminal Assistant for Modern Developers**
 
-## Demo
+[![npm version](https://img.shields.io/npm/v/fortify-ai-cli.svg?style=flat-square&color=cb3837)](https://www.npmjs.com/package/fortify-ai-cli)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/jatin-awankar/fortify/ci.yml?branch=main&style=flat-square&label=build)](https://github.com/jatin-awankar/fortify/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg?style=flat-square)](https://nodejs.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
-![Fortify Demo](./assets/demo.gif)
+[Quickstart](#-quickstart) • [Feature Matrix](#-feature-comparison) • [Architecture](#-architecture) • [Documentation](#-documentation)
 
-## Install
+</div>
 
-Requirements:
+---
 
-- Node.js 20+
-- An OpenAI API key
+## ⚡ Highlights
+
+Fortify is built to stand among the **Top 1% developer CLI tools**. Unlike generic AI wrappers, Fortify provides **deep repository awareness**, **interactive terminal editing**, **smart `@file` prompt attachments**, **pluggable local/cloud providers**, and **workspace-level prompt shortcuts**.
+
+- 🧠 **Repo-Aware Context**: Automatically scans workspace signature files (`package.json`, `Cargo.toml`, `requirements.txt`, `go.mod`, etc.) and active Git metadata.
+- 📎 **Smart `@file` Attachments & Autocomplete**: Reference files directly in prompts with `@src/index.js` featuring size safety checks and readline tab-completion.
+- ✏️ **Safe & Interactive Commits**: Edit generated commit messages in `$EDITOR`, `$VISUAL`, `code --wait`, `notepad`, or `nano` before committing (`fortify commit -i`), with Conventional Commits validation (`--validate`).
+- 🔌 **Pluggable Backends**: Seamlessly switch between **OpenAI**, **Anthropic (Claude 3.5 Sonnet)**, and **Ollama (local models)**.
+- 🧩 **Extensible Shortcuts & Rules**: Define local prompt shortcuts (e.g. `@security-check`, `@refactor`) in `.fortify/plugins/` and custom repo instructions in `.fortify/rules.md`.
+- 🎨 **Rich Terminal UX**: Cyan ASCII branding, border boxes, diff syntax color highlighting (`+` green, `-` red, `@@` cyan), and `ora` loading spinners.
+
+---
+
+## 📊 Feature Comparison
+
+| Feature | 🛡️ Fortify CLI | GitHub Copilot CLI | Aider | Cursor CLI |
+| :--- | :---: | :---: | :---: | :---: |
+| **Repo Signature & Stack Auto-Detection** | ✓ **Built-in (`fortify init`)** | ✘ | ✘ | ⚠️ Basic |
+| **Interactive Terminal Editor Integration (`$EDITOR`)** | ✓ **Built-in (`-i`)** | ✘ | ✘ | ✘ |
+| **Pluggable Providers (OpenAI, Anthropic, Local Ollama)** | ✓ **Native** | ✘ (OpenAI only) | ✓ | ✘ (Proprietary) |
+| **Workspace Prompt Shortcuts (`.fortify/plugins`)** | ✓ **Native** | ✘ | ✘ | ✘ |
+| **Tab-Autocomplete for Workspace Files (`@path`)** | ✓ **Native** | ✘ | ✓ | ✘ |
+| **Conventional Commits Format Validator** | ✓ **Native (`--validate`)** | ✘ | ✘ | ✘ |
+| **Persistent Session Resume (`--resume`)** | ✓ **Native** | ✘ | ⚠️ Limited | ✘ |
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart TD
+    subgraph CLI ["Fortify Core CLI"]
+        Entry[bin/fortify.js] --> Loader[Command Loader]
+        Loader --> Services[Command Services]
+    end
+
+    subgraph Context ["Repository Context Engine"]
+        Services --> ContextService[ProjectContextService]
+        ContextService --> Detect[Stack Signatures & Git Summary]
+        Services --> PluginService[PluginService]
+        PluginService --> LocalPlugins[.fortify/plugins & rules.md]
+    end
+
+    subgraph Providers ["Pluggable AI Provider Factory"]
+        Services --> Factory[ProviderFactory]
+        Factory --> OpenAI[OpenAIService]
+        Factory --> Anthropic[AnthropicService]
+        Factory --> Ollama[OllamaService (Local LLM)]
+    end
+
+    subgraph Renderer ["Terminal UX & Renderers"]
+        Services --> TUI[TerminalUI & Chalk]
+        TUI --> Output[Stream & Table Formatting]
+    end
+```
+
+---
+
+## 🚀 Quickstart
+
+### Installation
+
+Install globally via npm:
 
 ```bash
 npm install -g fortify-ai-cli
-fortify --help
 ```
 
-Run without installing:
+### 1. Initialize Workspace
+
+Run `fortify init` in your project directory to detect the stack and set up local rules:
 
 ```bash
-npx fortify-ai-cli --help
+fortify init
 ```
 
-## 60-second quickstart
+### 2. Configure API Key / Provider
 
-Use an environment variable:
-
-```bash
-export OPENAI_API_KEY="sk-..."
-fortify explain "TypeError: x is not a function"
-```
-
-Or store the key locally:
+Save your OpenAI API key:
 
 ```bash
 fortify auth
-fortify explain ./logs/error.log
-fortify commit --dry-run
+# or configure custom providers:
+fortify config set provider anthropic
+fortify config set apiKeys.anthropic "your-anthropic-key"
 ```
 
-Fortify stores local config at:
-
-```text
-~/.fortify/config.json
-```
-
-`OPENAI_API_KEY` takes precedence over the saved config for runtime requests and does not rewrite your local config file.
-
-## Commands
+### 3. Interactive Chat with `@file` References & Tab Autocomplete
 
 ```bash
-fortify explain ./logs/error.log
-fortify explain "TypeError: x is not a function" --context "Node.js app"
-
-fortify summarize ./src
-fortify summarize ./src --format bullet
-
-fortify commit --dry-run
-fortify commit --style conventional --scope cli
-fortify commit --yes
-
 fortify chat
-fortify chat --session local-dev
-
-fortify history --list
-fortify history --show default
-fortify history --clear
-
-fortify config list
-fortify config get modelPreferences.defaultModel
-fortify config set modelPreferences.defaultModel gpt-5.1
-fortify config validate
 ```
 
-## Global options
-
-```bash
-fortify --json config validate
-fortify --quiet config validate
-fortify --verbose config validate
-```
-
-- `--json` emits machine-readable JSON where supported.
-- `--quiet` suppresses nonessential terminal output.
-- `--verbose` is reserved for additional diagnostics as commands grow.
-
-## Safer commits
-
-`fortify commit` reads staged changes only. If nothing is staged, it exits without generating a message.
-
-Recommended flow:
-
-```bash
-git add src/index.js
-fortify commit --dry-run
-fortify commit
-```
-
-The command shows repository context and a staged diff summary before asking for confirmation. It only creates a commit when you confirm interactively or pass `--yes`.
-
-## Configuration
-
-Default config shape:
-
-```json
-{
-  "apiKeys": {
-    "openai": ""
-  },
-  "modelPreferences": {
-    "defaultModel": "gpt-5.4",
-    "fallbackModels": ["gpt-5.3", "gpt-5.4-mini"]
-  },
-  "theme": {
-    "name": "default",
-    "useColor": true
-  }
-}
-```
-
-Useful config commands:
-
-```bash
-fortify config list
-fortify config get apiKeys.openai
-fortify config set theme.useColor false
-fortify config set modelPreferences.fallbackModels '["gpt-5.1-mini"]'
-fortify config validate
-```
-
-Secret values are redacted when displayed.
-
-## History
-
-Chat history is stored locally in:
-
+Inside chat:
 ```text
-~/.fortify/history
+You > Please explain @src/services/chat-service.js and check @security-check
 ```
 
-Use named sessions to keep threads separate:
+### 4. Interactive Commit Workflow
+
+Draft a commit message and edit it in your default `$EDITOR`:
 
 ```bash
-fortify chat --session release-work
-fortify history --show release-work
+fortify commit --interactive --validate
 ```
 
-## Troubleshooting
+---
 
-- Missing API key: set `OPENAI_API_KEY` or run `fortify auth`.
-- Quota or billing errors: check https://platform.openai.com/account/billing.
-- No commit message generated: stage files first with `git add`.
-- Not a git repository: run commit commands from inside a git work tree.
-- Invalid config: run `fortify config validate`, then fix the reported key with `fortify config set`.
+## 📚 Command Reference
 
-## Development
+| Command | Description | Key Flags |
+| :--- | :--- | :--- |
+| `fortify init` | Initialize workspace `.fortify/project.json` & `.gitignore` | `-y, --yes` |
+| `fortify chat` | Open interactive assistant terminal chat | `-r, --resume`, `--session <id>` |
+| `fortify commit` | Draft and review git commit messages | `-i, --interactive`, `--validate`, `--dry-run` |
+| `fortify explain` | Explain technical errors or code snippets | Inline text or file path |
+| `fortify summarize` | Summarize codebase directory context recursively | Source directory path |
+| `fortify plugin` | Manage workspace plugins, shortcuts, and rules | `list`, `init` |
+| `fortify config` | Inspect, validate, and set configuration settings | `list`, `get`, `set`, `validate` |
+| `fortify history` | View or clear interactive chat session history | `list`, `--show <id>`, `--clear` |
+
+---
+
+## 🧪 Development & Testing
+
+Run unit test suite:
 
 ```bash
-npm ci
 npm test
+```
+
+Run full package verification pipeline:
+
+```bash
 npm run verify
 ```
 
-`npm test` runs the Node test suite. `npm run verify` runs tests and the publish smoke check.
+---
 
-## Package name vs CLI name
+## 📄 License
 
-The npm package is:
-
-```text
-fortify-ai-cli
-```
-
-The installed command is:
-
-```text
-fortify
-```
-
-## License
-
-MIT - see [LICENSE](./LICENSE).
+[MIT](LICENSE) © [Jatin Awankar](https://github.com/jatin-awankar)

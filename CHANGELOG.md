@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+- Added workspace plugin discovery (`.fortify/plugins/`) and custom project rules (`.fortify/rules.md`).
+- Added prompt shortcuts (`@security-check`, `@refactor`, `@explain-simple`) with dynamic expansion.
+- Added `fortify plugin list` and `fortify plugin init` management commands.
+- Added GitHub Actions tag-triggered automated release pipeline (`.github/workflows/release.yml`) and OS matrix testing (`.github/workflows/ci.yml`).
+- Added cyan FORTIFY ASCII logo banner, `TerminalUI.box()` status frames, and `TerminalUI.table()` alignment formatting for history and config listings.
+- Added comprehensive README documentation with Shields.io badges, Mermaid architecture diagrams, and competitive feature matrix.
+- Added modern dark-mode glassmorphic showcase website (`docs/index.html`).
+
 ## 0.4.0
 
 - Added `fortify init` command for workspace initialization and `.fortify/project.json` creation.
