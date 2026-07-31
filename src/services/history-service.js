@@ -44,11 +44,22 @@ export class HistoryService {
       return { ok: true, sessions: [] };
     }
 
-    for (const session of sessions) {
-      const messageCount = Number.isFinite(session.messageCount) ? session.messageCount : 0;
-      this.terminalUI.stdout.write(
-        `${this.terminalUI.chalk.yellow(session.id)}  messages=${messageCount}  updated=${session.updatedAt}\n`
-      );
+    const headers = ["Session ID", "Messages", "Last Updated"];
+    const rows = sessions.map((s) => [
+      s.id,
+      String(Number.isFinite(s.messageCount) ? s.messageCount : 0),
+      s.updatedAt || "N/A"
+    ]);
+
+    if (typeof this.terminalUI.table === "function") {
+      this.terminalUI.table(headers, rows);
+    } else {
+      for (const session of sessions) {
+        const messageCount = Number.isFinite(session.messageCount) ? session.messageCount : 0;
+        this.terminalUI.stdout.write(
+          `${this.terminalUI.chalk.yellow(session.id)}  messages=${messageCount}  updated=${session.updatedAt}\n`
+        );
+      }
     }
 
     return { ok: true, sessions };

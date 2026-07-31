@@ -1,4 +1,4 @@
-﻿import { appMetadata } from "../config/app-metadata.js";
+import { appMetadata } from "../config/app-metadata.js";
 import { createTerminalUI } from "./terminal-ui.js";
 import { StreamRenderCancelledError } from "./streaming-terminal-renderer.js";
 import { MarkdownTerminalRenderer } from "./markdown-terminal-renderer.js";
@@ -13,10 +13,19 @@ export class ChatSessionRenderer {
   }
 
   showSessionStart({ mode, sessionId }) {
-    this.terminalUI.divider(`${appMetadata.displayName} Chat`);
-    this.terminalUI.info(`Mode: ${mode}`);
-    this.terminalUI.info(`Session: ${sessionId}`);
-    this.terminalUI.info("Type /exit to leave chat.");
+    const banner = `
+  ███████╗██████╗ ████████╗███████╗██╗   ██╗
+  ██╔════╝██╔═══██╗  ██╔═══╝██╔════╝╚██╗ ██╔╝
+  █████╗  ██║   ██║  ██║    █████╗   ╚████╔╝ 
+  ██╔══╝  ██║   ██║  ██║    ██╔══╝    ╚██╔╝  
+  ██║     ╚██████╔╝  ██║    ██║        ██║   
+  ╚═╝      ╚═════╝   ╚═╝    ╚═╝        ╚═╝   `;
+    if (this.terminalUI.capabilities.shouldUseColor) {
+      this.terminalUI.stdout.write(`${this.terminalUI.chalk.cyan(banner)}\n`);
+    }
+    this.terminalUI.divider(`${appMetadata.displayName} v${appMetadata.version} Chat`);
+    this.terminalUI.info(`Mode: ${mode} | Session: ${sessionId}`);
+    this.terminalUI.info("Type /exit to leave chat, or @filename to attach workspace files.");
     this.terminalUI.divider();
   }
 

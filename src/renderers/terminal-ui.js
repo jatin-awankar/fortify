@@ -123,6 +123,43 @@ export class TerminalUI {
     }
   }
 
+  box(title = "", content = "") {
+    if (this.#shouldSuppressNonErrorOutput()) return;
+
+    const lines = typeof content === "string" ? content.split("\n") : [];
+    const maxLineLength = Math.max(title.length + 4, ...lines.map((l) => l.length), 30);
+    const innerWidth = maxLineLength + 2;
+
+    const topBorder = `┌─ ${this.chalk.bold.cyan(title)} ${"─".repeat(Math.max(0, innerWidth - title.length - 4))}┐`;
+    const bottomBorder = `└${"─".repeat(innerWidth)}┘`;
+
+    this.stdout.write(`${topBorder}\n`);
+    for (const line of lines) {
+      const paddedLine = line.padEnd(maxLineLength, " ");
+      this.stdout.write(`│ ${paddedLine} │\n`);
+    }
+    this.stdout.write(`${bottomBorder}\n`);
+  }
+
+  table(headers = [], rows = []) {
+    if (this.#shouldSuppressNonErrorOutput()) return;
+
+    const colWidths = headers.map((h, i) => {
+      const maxRowLen = Math.max(...rows.map((r) => String(r[i] ?? "").length), 0);
+      return Math.max(h.length, maxRowLen);
+    });
+
+    const headerStr = headers.map((h, i) => this.chalk.bold(h.padEnd(colWidths[i]))).join(" │ ");
+    const separatorStr = colWidths.map((w) => "─".repeat(w)).join("─┼─");
+
+    this.stdout.write(`\n${headerStr}\n${separatorStr}\n`);
+    for (const row of rows) {
+      const rowStr = row.map((cell, i) => String(cell ?? "").padEnd(colWidths[i])).join(" │ ");
+      this.stdout.write(`${rowStr}\n`);
+    }
+    this.stdout.write("\n");
+  }
+
   #writeLine(stream, label, message) {
     stream.write(`${label} ${message}\n`);
   }
