@@ -1,195 +1,188 @@
-﻿# Fortify &middot; [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/jatin-awankar/fortify/blob/main/LICENSE)
+# Fortify
 
-Fortify (`fortify-ai-cli`) is a developer-focused terminal assistant that helps you explain errors, generate commit messages, summarize codebases, and streamline daily workflows directly from the CLI.
+[![CI](https://github.com/jatin-awankar/fortify/actions/workflows/ci.yml/badge.svg)](https://github.com/jatin-awankar/fortify/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
-Built for developers who live in the terminal.
-
----
+Fortify (`fortify-ai-cli`) is a terminal-first AI assistant for developers who want help explaining errors, drafting safe commit messages, summarizing code, and keeping local chat history without leaving the shell.
 
 ## Demo
 
 ![Fortify Demo](./assets/demo.gif)
 
----
+## Install
 
-## Features
+Requirements:
 
-- Streaming AI responses directly in terminal
-- Git-aware commit message generation
-- Error and stack trace explanation
-- File and folder summarization
-- Interactive chat mode
-- Local CLI configuration and chat history persistence
-- Clean terminal UX with colors, prompts, and spinners
-
----
-
-Example workflow:
-
-```bash
-# Explain a stack trace
-fortify explain ./logs/error.txt
-
-# Generate a commit message from staged changes
-fortify commit --style conventional
-
-# Summarize a codebase
-fortify summarize ./src
-
-# Interactive AI chat
-fortify chat
-
-# Inspect saved chat sessions
-fortify history --list
-```
-
----
-
-## Requirements
-
-- Node.js **20+**
-- An OpenAI API key with billing or credits enabled
-
-Get your API key here:
-
-https://platform.openai.com/api-keys
-
----
-
-## Installation
-
-Install globally:
+- Node.js 20+
+- An OpenAI API key
 
 ```bash
 npm install -g fortify-ai-cli
+fortify --help
 ```
 
-The installed command is:
-
-```bash
-fortify
-```
-
-Run directly without installing:
+Run without installing:
 
 ```bash
 npx fortify-ai-cli --help
 ```
 
----
+## 60-second quickstart
 
-## Quick Start
+Use an environment variable:
 
-Authenticate once:
+```bash
+export OPENAI_API_KEY="sk-..."
+fortify explain "TypeError: x is not a function"
+```
+
+Or store the key locally:
 
 ```bash
 fortify auth
+fortify explain ./logs/error.log
+fortify commit --dry-run
 ```
 
-This stores your API key locally in:
+Fortify stores local config at:
 
 ```text
 ~/.fortify/config.json
 ```
 
-Then start using Fortify:
+`OPENAI_API_KEY` takes precedence over the saved config for runtime requests and does not rewrite your local config file.
+
+## Commands
 
 ```bash
-fortify chat
-fortify explain ./crash.log
-fortify commit
+fortify explain ./logs/error.log
+fortify explain "TypeError: x is not a function" --context "Node.js app"
+
 fortify summarize ./src
+fortify summarize ./src --format bullet
+
+fortify commit --dry-run
+fortify commit --style conventional --scope cli
+fortify commit --yes
+
+fortify chat
+fortify chat --session local-dev
+
 fortify history --list
+fortify history --show default
+fortify history --clear
+
+fortify config list
+fortify config get modelPreferences.defaultModel
+fortify config set modelPreferences.defaultModel gpt-5.1
+fortify config validate
 ```
 
-Use help anytime:
+## Global options
 
 ```bash
-fortify --help
-fortify <command> --help
+fortify --json config validate
+fortify --quiet config validate
+fortify --verbose config validate
 ```
 
----
+- `--json` emits machine-readable JSON where supported.
+- `--quiet` suppresses nonessential terminal output.
+- `--verbose` is reserved for additional diagnostics as commands grow.
 
-## History Storage
+## Safer commits
 
-Fortify stores local chat history in:
+`fortify commit` reads staged changes only. If nothing is staged, it exits without generating a message.
+
+Recommended flow:
+
+```bash
+git add src/index.js
+fortify commit --dry-run
+fortify commit
+```
+
+The command shows repository context and a staged diff summary before asking for confirmation. It only creates a commit when you confirm interactively or pass `--yes`.
+
+## Configuration
+
+Default config shape:
+
+```json
+{
+  "apiKeys": {
+    "openai": ""
+  },
+  "modelPreferences": {
+    "defaultModel": "gpt-5.4",
+    "fallbackModels": ["gpt-5.3", "gpt-5.4-mini"]
+  },
+  "theme": {
+    "name": "default",
+    "useColor": true
+  }
+}
+```
+
+Useful config commands:
+
+```bash
+fortify config list
+fortify config get apiKeys.openai
+fortify config set theme.useColor false
+fortify config set modelPreferences.fallbackModels '["gpt-5.1-mini"]'
+fortify config validate
+```
+
+Secret values are redacted when displayed.
+
+## History
+
+Chat history is stored locally in:
 
 ```text
 ~/.fortify/history
 ```
 
-Use:
+Use named sessions to keep threads separate:
 
 ```bash
-fortify history --list
-fortify history --show <session-id>
-fortify history --clear
+fortify chat --session release-work
+fortify history --show release-work
 ```
 
----
+## Troubleshooting
 
-## Cancellation Behavior
+- Missing API key: set `OPENAI_API_KEY` or run `fortify auth`.
+- Quota or billing errors: check https://platform.openai.com/account/billing.
+- No commit message generated: stage files first with `git add`.
+- Not a git repository: run commit commands from inside a git work tree.
+- Invalid config: run `fortify config validate`, then fix the reported key with `fortify config set`.
 
-All interactive and streaming flows handle `Ctrl+C` gracefully:
+## Development
 
-- In `fortify chat`, `Ctrl+C` exits the chat loop cleanly.
-- During streaming commands (`explain`, `summarize`, `commit`), `Ctrl+C` cancels the active generation without noisy stack traces.
-- Cancelled flows return exit code `130`.
-
----
-
-## Configuration
-
-Example configuration:
-
-```json
-{
-  "modelPreferences": {
-    "defaultModel": "gpt-5.4",
-    "fallbackModels": ["gpt-5.3", "gpt-5.4-mini"]
-  }
-}
+```bash
+npm ci
+npm test
+npm run verify
 ```
 
-If your OpenAI account has no billing or credits enabled, requests will fail regardless of fallback models.
+`npm test` runs the Node test suite. `npm run verify` runs tests and the publish smoke check.
 
-Manage billing here:
+## Package name vs CLI name
 
-https://platform.openai.com/account/billing
-
----
-
-## Package Name vs CLI Name
-
-The npm package is published as:
+The npm package is:
 
 ```text
 fortify-ai-cli
 ```
 
-because the shorter package name was unavailable on npm.
+The installed command is:
 
-The installed CLI command remains:
-
-```bash
+```text
 fortify
 ```
 
----
-
-## Built With
-
-- Node.js
-- Commander.js
-- OpenAI Responses API
-- Streaming async iterators
-- Chalk
-- Ora
-- Inquirer
-
----
-
 ## License
 
-MIT - see [LICENSE](./LICENSE)
+MIT - see [LICENSE](./LICENSE).

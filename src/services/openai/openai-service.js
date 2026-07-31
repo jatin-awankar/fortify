@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { appMetadata } from "../../config/app-metadata.js";
-import { loadConfig } from "../../config/index.js";
+import { loadRuntimeConfig } from "../../config/index.js";
 import { resolveModelChain } from "../../config/model-preferences.js";
 import { withRetry } from "../../utils/retry.js";
 import {
@@ -15,7 +15,7 @@ const DEFAULT_MODEL = "gpt-5.1";
 
 export class OpenAIService {
   constructor({
-    configLoader = loadConfig,
+    configLoader = loadRuntimeConfig,
     clientFactory = (options) => new OpenAI(options),
     timeoutMs = 60_000,
     maxRetries = 2,

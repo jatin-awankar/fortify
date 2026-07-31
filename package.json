@@ -1,6 +1,6 @@
 {
   "name": "fortify-ai-cli",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "AI powered developer-focused CLI for error explanation, git commit generation, codebase summarization, and terminal first workflows",
   "type": "module",
   "license": "MIT",
@@ -29,6 +29,7 @@
     "bin/",
     "src/",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "bin": {
@@ -44,9 +45,9 @@
   },
   "scripts": {
     "start": "node ./bin/fortify.js",
-    "test": "node ./scripts/verify-publish.mjs",
-    "verify": "node ./scripts/verify-publish.mjs",
-    "prepublishOnly": "node ./scripts/verify-publish.mjs"
+    "test": "node --test",
+    "verify": "npm test && node ./scripts/verify-publish.mjs",
+    "prepublishOnly": "npm run verify"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -44,7 +44,7 @@ export class CommitService {
     this.signalProcess = signalProcess;
   }
 
-  async runCommitFlow({ style = "conventional", scope = "", autoCommit = false } = {}) {
+  async runCommitFlow({ style = "conventional", scope = "", autoCommit = false, dryRun = false } = {}) {
     const isRepository = await this.gitService.isGitRepository();
 
     if (!isRepository) {
@@ -59,7 +59,9 @@ export class CommitService {
     }
 
     const branchName = await this.gitService.getCurrentBranchName();
+    const stagedDiffSummary = await this.gitService.getStagedDiffSummary();
     this.renderer.showContext({ branchName, style, scope });
+    this.renderer.showDiffSummary(stagedDiffSummary);
 
     const { controller: generationController, cleanup: cleanupCancellation } = createCancellationController({
       signalProcess: this.signalProcess,
@@ -96,6 +98,11 @@ export class CommitService {
       }
 
       this.renderer.showResolvedMessage(commitMessage);
+
+      if (dryRun) {
+        this.renderer.showDryRunComplete();
+        return { ok: true, committed: false, dryRun: true, message: commitMessage };
+      }
 
       const shouldCommit = autoCommit ? true : await this.renderer.askForConfirmation();
       if (!shouldCommit) {

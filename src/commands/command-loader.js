@@ -1,6 +1,7 @@
 import { createAuthCommand } from "./auth-command.js";
 import { createChatCommand } from "./chat-command.js";
 import { createCommitCommand } from "./commit-command.js";
+import { createConfigCommand } from "./config-command.js";
 import { createExplainCommand } from "./explain-command.js";
 import { createHistoryCommand } from "./history-command.js";
 import { createSummarizeCommand } from "./summarize-command.js";
@@ -11,6 +12,7 @@ export function getCommandDefinitions() {
 
   return [
     createAuthCommand(commandService),
+    createConfigCommand(commandService),
     createExplainCommand(commandService),
     createCommitCommand(commandService),
     createSummarizeCommand(commandService),

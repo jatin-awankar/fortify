@@ -30,6 +30,16 @@ export class CommitRenderer {
     this.terminalUI.warning("No staged changes found. Stage files before generating a commit message.");
   }
 
+  showDiffSummary(summary) {
+    if (!summary?.trim()) {
+      return;
+    }
+
+    this.terminalUI.info("Staged diff summary:");
+    this.terminalUI.stdout.write(`${this.terminalUI.chalk.dim(summary.trim())}\n`);
+    this.terminalUI.divider();
+  }
+
   showGenerating() {
     this.terminalUI.info("Generating commit message from staged diff...");
     this.terminalUI.stdout.write(`${this.terminalUI.chalk.bold.green("Suggested:")} `);
@@ -70,6 +80,10 @@ export class CommitRenderer {
 
   showCommitSkipped() {
     this.terminalUI.info("Commit skipped.");
+  }
+
+  showDryRunComplete() {
+    this.terminalUI.info("Dry run complete. No commit was created.");
   }
 
   showError(message) {

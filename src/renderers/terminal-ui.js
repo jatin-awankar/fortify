@@ -1,6 +1,7 @@
 import { Chalk } from "chalk";
 import ora from "ora";
 import { detectTerminalCapabilities } from "../utils/terminal-capabilities.js";
+import { getRuntimeOptions } from "../utils/runtime-options.js";
 
 const DEFAULT_DIVIDER_WIDTH = 80;
 const STATUS_LABELS = {
@@ -25,22 +26,37 @@ export class TerminalUI {
   }
 
   success(message) {
+    if (this.#shouldSuppressNonErrorOutput()) {
+      return;
+    }
     this.#writeLine(this.stdout, this.chalk.green(STATUS_LABELS.success), message);
   }
 
   error(message) {
+    if (getRuntimeOptions().json) {
+      return;
+    }
     this.#writeLine(this.stderr, this.chalk.red(STATUS_LABELS.error), message);
   }
 
   warning(message) {
+    if (this.#shouldSuppressNonErrorOutput()) {
+      return;
+    }
     this.#writeLine(this.stderr, this.chalk.yellow(STATUS_LABELS.warning), message);
   }
 
   info(message) {
+    if (this.#shouldSuppressNonErrorOutput()) {
+      return;
+    }
     this.#writeLine(this.stdout, this.chalk.blue(STATUS_LABELS.info), message);
   }
 
   divider(label = "") {
+    if (this.#shouldSuppressNonErrorOutput()) {
+      return;
+    }
     const width = Math.max(20, Math.min(this.stdout.columns ?? DEFAULT_DIVIDER_WIDTH, 120));
     const content = label ? ` ${label.trim()} ` : "";
     const base = width - content.length;
@@ -61,7 +77,7 @@ export class TerminalUI {
       text,
       stream: this.stderr,
       isEnabled: this.capabilities.shouldUseSpinner,
-      isSilent: !this.capabilities.shouldUseSpinner,
+      isSilent: !this.capabilities.shouldUseSpinner || this.#shouldSuppressNonErrorOutput(),
       discardStdin: false,
       ...options
     });
@@ -109,6 +125,11 @@ export class TerminalUI {
 
   #writeLine(stream, label, message) {
     stream.write(`${label} ${message}\n`);
+  }
+
+  #shouldSuppressNonErrorOutput() {
+    const options = getRuntimeOptions();
+    return options.quiet || options.json;
   }
 }
 

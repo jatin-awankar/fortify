@@ -18,8 +18,9 @@ export class GitBinaryNotFoundError extends GitServiceError {
 }
 
 export class GitService {
-  constructor({ cwd = process.cwd() } = {}) {
+  constructor({ cwd = process.cwd(), commandRunner } = {}) {
     this.cwd = cwd;
+    this.commandRunner = commandRunner;
   }
 
   async isGitRepository({ cwd = this.cwd } = {}) {
@@ -71,6 +72,22 @@ export class GitService {
     return result.stdout;
   }
 
+  async getStagedDiffSummary({ cwd = this.cwd } = {}) {
+    const isRepository = await this.isGitRepository({ cwd });
+    if (!isRepository) {
+      return "";
+    }
+
+    const result = await this.#runGitCommand(["diff", "--cached", "--stat"], { cwd });
+    if (!result.ok) {
+      throw new GitServiceError("Failed to read staged git diff summary.", {
+        cause: this.#buildCommandError(result)
+      });
+    }
+
+    return result.stdout;
+  }
+
   async commitWithMessage({ message, cwd = this.cwd } = {}) {
     const normalizedMessage = typeof message === "string" ? message.trim() : "";
 
@@ -111,6 +128,10 @@ export class GitService {
   }
 
   async #runGitCommand(args, { cwd } = {}) {
+    if (this.commandRunner) {
+      return this.commandRunner(args, { cwd });
+    }
+
     return new Promise((resolve, reject) => {
       const childProcess = spawn("git", args, {
         cwd,

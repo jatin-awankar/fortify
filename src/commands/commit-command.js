@@ -12,6 +12,7 @@ export function createCommitCommand(commandService) {
         )
         .option("-s, --style <style>", "Commit style convention", "conventional")
         .option("--scope <scope>", "Optional commit scope")
+        .option("--dry-run", "Generate and display a commit message without committing")
         .option("-y, --yes", "Skip confirmation and commit automatically")
         .addHelpText(
           "after",
@@ -21,6 +22,7 @@ export function createCommitCommand(commandService) {
           await commandService.commit({
             style: options.style,
             scope: options.scope ?? "",
+            dryRun: options.dryRun ?? false,
             yes: options.yes ?? false
           });
         });
