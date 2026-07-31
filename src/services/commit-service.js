@@ -1,4 +1,4 @@
-﻿import {
+import {
   buildCommitMessageInput,
   buildCommitMessageInstructions
 } from "../prompts/commit-message-prompt.js";
@@ -9,6 +9,7 @@ import {
 } from "../utils/operation-cancellation.js";
 import { GitService } from "./git-service.js";
 import { OpenAIService } from "./openai/index.js";
+import { ProjectContextService } from "./project-context-service.js";
 
 function normalizeCommitMessage(rawMessage) {
   if (typeof rawMessage !== "string") {
@@ -35,11 +36,13 @@ export class CommitService {
   constructor({
     gitService = new GitService(),
     openAIService = new OpenAIService(),
+    projectContextService = new ProjectContextService(),
     renderer = new CommitRenderer(),
     signalProcess = process
   } = {}) {
     this.gitService = gitService;
     this.openAIService = openAIService;
+    this.projectContextService = projectContextService;
     this.renderer = renderer;
     this.signalProcess = signalProcess;
   }
@@ -52,6 +55,9 @@ export class CommitService {
       return { ok: false, reason: "not_git_repository" };
     }
 
+    const contextSummary = await this.projectContextService.getProjectContextSummary();
+    const contextPrompt = this.projectContextService.formatSystemPromptContext(contextSummary);
+
     const stagedDiff = await this.gitService.getStagedDiff();
     if (!stagedDiff.trim()) {
       this.renderer.showNoStagedChanges();
@@ -62,14 +68,13 @@ export class CommitService {
     const stagedDiffSummary = await this.gitService.getStagedDiffSummary();
     this.renderer.showContext({ branchName, style, scope });
     this.renderer.showDiffSummary(stagedDiffSummary);
-
-    const { controller: generationController, cleanup: cleanupCancellation } = createCancellationController({
+    const { controller: generationController, cleanup: cleanupCancellation } = createCancellationController({
       signalProcess: this.signalProcess,
       cancelMessage: "Commit generation cancelled by Ctrl+C."
     });
 
     try {
-      const instructions = buildCommitMessageInstructions({ style, scope });
+      const instructions = buildCommitMessageInstructions({ style, scope }) + "\n\n" + contextPrompt;
       const input = buildCommitMessageInput({
         branchName,
         stagedDiff,

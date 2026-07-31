@@ -19,6 +19,10 @@ const DEFAULT_CONFIG = {
     name: "default",
     useColor: true,
   },
+  limits: {
+    maxFileRefBytes: 102_400,
+    maxFileRefs: 5,
+  },
 };
 
 function isPlainObject(value) {
@@ -232,6 +236,19 @@ export function validateConfig(config) {
 
   if (typeof config?.theme?.useColor !== "boolean") {
     issues.push("theme.useColor must be a boolean.");
+  }
+
+  if (config?.limits !== undefined) {
+    if (!isPlainObject(config.limits)) {
+      issues.push("limits must be an object.");
+    } else {
+      if (config.limits.maxFileRefBytes !== undefined && typeof config.limits.maxFileRefBytes !== "number") {
+        issues.push("limits.maxFileRefBytes must be a number.");
+      }
+      if (config.limits.maxFileRefs !== undefined && typeof config.limits.maxFileRefs !== "number") {
+        issues.push("limits.maxFileRefs must be a number.");
+      }
+    }
   }
 
   return {

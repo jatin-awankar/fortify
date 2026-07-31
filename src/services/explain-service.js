@@ -1,4 +1,4 @@
-﻿import { readFile, stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { appMetadata } from "../config/app-metadata.js";
 import { buildExplainInput, buildExplainInstructions } from "../prompts/explain-error-prompt.js";
@@ -9,6 +9,7 @@ import {
 } from "../utils/operation-cancellation.js";
 import { detectNodeStackTrace } from "../utils/stack-trace.js";
 import { OpenAIService } from "./openai/index.js";
+import { ProjectContextService } from "./project-context-service.js";
 
 const MAX_INPUT_CHARS = 40_000;
 
@@ -25,11 +26,13 @@ export class ExplainService {
   constructor({
     openAIService = new OpenAIService(),
     renderer = new ExplainRenderer(),
+    projectContextService = new ProjectContextService(),
     cwd = process.cwd(),
     signalProcess = process
   } = {}) {
     this.openAIService = openAIService;
     this.renderer = renderer;
+    this.projectContextService = projectContextService;
     this.cwd = cwd;
     this.signalProcess = signalProcess;
   }
@@ -51,6 +54,9 @@ export class ExplainService {
       return { ok: false, reason: "input_error" };
     }
 
+    const contextSummary = await this.projectContextService.getProjectContextSummary();
+    const contextPrompt = this.projectContextService.formatSystemPromptContext(contextSummary);
+
     const stackTrace = detectNodeStackTrace(resolvedInput.rawText);
     this.renderer.showStart({
       sourceLabel: resolvedInput.sourceLabel,
@@ -66,7 +72,7 @@ export class ExplainService {
     try {
       const instructions = buildExplainInstructions({
         hasStackTrace: stackTrace.detected
-      });
+      }) + "\n\n" + contextPrompt;
       const input = buildExplainInput({
         sourceLabel: resolvedInput.sourceLabel,
         sourceType: resolvedInput.sourceType,

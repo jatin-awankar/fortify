@@ -5,6 +5,7 @@ import { ConfigService } from "./config-service.js";
 import { ExplainService } from "./explain-service.js";
 import { HistoryService } from "./history-service.js";
 import { SummarizeService } from "./summarize-service.js";
+import { InitService } from "./init-service.js";
 import { normalizeErrorForOutput } from "../utils/error-normalizer.js";
 import { USER_CANCELLED_EXIT_CODE } from "../utils/operation-cancellation.js";
 import { getRuntimeOptions } from "../utils/runtime-options.js";
@@ -18,6 +19,7 @@ export class CommandService {
     explainService = new ExplainService(),
     historyService = new HistoryService(),
     summarizeService = new SummarizeService(),
+    initService = new InitService(),
   } = {}) {
     this.authService = authService;
     this.chatService = chatService;
@@ -26,6 +28,7 @@ export class CommandService {
     this.explainService = explainService;
     this.historyService = historyService;
     this.summarizeService = summarizeService;
+    this.initService = initService;
   }
 
   async explain(input) {
@@ -85,6 +88,16 @@ export class CommandService {
       list: Boolean(input?.list),
       show: input?.show ?? "",
       clear: Boolean(input?.clear),
+    });
+
+    this.#completeResult(result);
+  }
+
+  async init(input) {
+    const result = await this.initService.runInitFlow({
+      name: input?.name,
+      stack: input?.stack,
+      yes: Boolean(input?.yes),
     });
 
     this.#completeResult(result);

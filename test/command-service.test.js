@@ -37,6 +37,10 @@ test("commit dry-run generates a message without executing git commit", async ()
         yield { type: "text_delta", delta: "feat: add dry run" };
       },
     },
+    projectContextService: {
+      getProjectContextSummary: async () => ({ name: "test-app", stack: ["Node.js"], instructions: "", git: null }),
+      formatSystemPromptContext: () => "[Mock Project Context]"
+    }
   });
 
   const result = await commitService.runCommitFlow({ dryRun: true });

@@ -1,4 +1,4 @@
-﻿import { createInterface } from "node:readline/promises";
+import { createInterface } from "node:readline/promises";
 import { ChatSessionRenderer } from "../renderers/index.js";
 import { InMemoryConversationStore } from "../storage/in-memory-conversation-store.js";
 import { LocalHistoryStore } from "../storage/local-history-store.js";
@@ -7,6 +7,10 @@ import {
   isAbortLikeError
 } from "../utils/operation-cancellation.js";
 import { OpenAIService } from "./openai/index.js";
+import { ProjectContextService } from "./project-context-service.js";
+import { loadConfig } from "../config/index.js";
+import { stat, readFile, readdir } from "node:fs/promises";
+import path from "node:path";
 
 function normalizeSessionId(sessionId) {
   if (typeof sessionId === "string" && sessionId.trim()) {
@@ -22,6 +26,9 @@ export class ChatService {
     conversationStore = new InMemoryConversationStore(),
     historyStore = new LocalHistoryStore(),
     renderer = new ChatSessionRenderer(),
+    projectContextService = new ProjectContextService(),
+    configLoader = loadConfig,
+    fsPromises = { stat, readFile, readdir },
     input = process.stdin,
     output = process.stdout,
     signalProcess = process
@@ -30,6 +37,9 @@ export class ChatService {
     this.conversationStore = conversationStore;
     this.historyStore = historyStore;
     this.renderer = renderer;
+    this.projectContextService = projectContextService;
+    this.configLoader = configLoader;
+    this.fs = fsPromises;
     this.input = input;
     this.output = output;
     this.signalProcess = signalProcess;
@@ -43,12 +53,21 @@ export class ChatService {
       ? this.conversationStore.hydrateSession(existingSession)
       : this.conversationStore.getOrCreateSession(resolvedSessionId);
 
+    const contextSummary = await this.projectContextService.getProjectContextSummary();
+    const contextPrompt = this.projectContextService.formatSystemPromptContext(contextSummary);
+    this.renderer.terminalUI.success(`Loaded project context: ${contextSummary.name} (${contextSummary.stack.join(", ")})`);
+
     const readlineInterface = createInterface({
       input: this.input,
       output: this.output,
       terminal: true,
       historySize: 200,
-      removeHistoryDuplicates: true
+      removeHistoryDuplicates: true,
+      completer: (line, callback) => {
+        this.autocompleteCompleter(line)
+          .then((result) => callback(null, result))
+          .catch(() => callback(null, [[], line]));
+      }
     });
 
     let exitRequested = false;
@@ -96,13 +115,19 @@ export class ChatService {
           break;
         }
 
+        const { content: finalContent } = await this.resolveFileAttachments(trimmedInput);
+
         this.conversationStore.addMessage(session.id, {
           role: "user",
-          content: trimmedInput
+          content: finalContent
         });
         await this.#persistSession(session.id);
 
         const responseInput = this.conversationStore.toResponseInput(session.id);
+        responseInput.unshift({
+          role: "system",
+          content: contextPrompt
+        });
 
         generationAbortController = new AbortController();
 
@@ -150,6 +175,129 @@ export class ChatService {
       readlineInterface.close();
       await this.#persistSession(session.id);
       this.renderer.showSessionEnd();
+    }
+  }
+
+  async resolveFileAttachments(userInput) {
+    const fileRefRegex = /@([a-zA-Z0-9_./\\-]+)/g;
+    const matches = [...userInput.matchAll(fileRefRegex)];
+    if (!matches.length) {
+      return { content: userInput, attachments: [] };
+    }
+
+    let config;
+    try {
+      config = await this.configLoader();
+    } catch {
+      config = null;
+    }
+    const maxBytes = config?.limits?.maxFileRefBytes ?? 102_400; // 100KB
+    const maxRefs = config?.limits?.maxFileRefs ?? 5;
+
+    let modifiedInput = userInput;
+    const attachments = [];
+    const uniqueMatches = Array.from(new Set(matches.map(m => m[1])));
+
+    for (let i = 0; i < Math.min(uniqueMatches.length, maxRefs); i++) {
+      const relPath = uniqueMatches[i];
+      const absPath = path.resolve(this.projectContextService.cwd, relPath);
+
+      try {
+        const fileStats = await this.fs.stat(absPath);
+        if (!fileStats.isFile()) {
+          continue;
+        }
+
+        let fileContent = "";
+        if (fileStats.size > maxBytes) {
+          const rawBuffer = await this.fs.readFile(absPath);
+          fileContent = rawBuffer.toString("utf8", 0, maxBytes);
+          this.renderer.terminalUI.warning(
+            `File @${relPath} exceeds configured size limit (${Math.round(maxBytes/1024)}KB). Loaded first ${Math.round(maxBytes/1024)}KB.`
+          );
+          fileContent += `\n\n[Warning: Content truncated after ${Math.round(maxBytes/1024)}KB limit]`;
+        } else {
+          fileContent = await this.fs.readFile(absPath, "utf8");
+        }
+
+        attachments.push({
+          path: relPath,
+          size: fileStats.size,
+          content: fileContent
+        });
+
+        const sizeLabel = fileStats.size > 1024 
+          ? `${(fileStats.size / 1024).toFixed(1)}KB` 
+          : `${fileStats.size}B`;
+        this.renderer.terminalUI.success(`📎 Loaded file: ${relPath} (${sizeLabel})`);
+      } catch (err) {
+        this.renderer.terminalUI.warning(`Could not read file @${relPath}: ${err.message}`);
+      }
+    }
+
+    if (uniqueMatches.length > maxRefs) {
+      this.renderer.terminalUI.warning(
+        `File reference limit reached. Loaded first ${maxRefs} files; remaining references ignored.`
+      );
+    }
+
+    if (attachments.length > 0) {
+      modifiedInput += "\n\n---";
+      for (const att of attachments) {
+        const ext = path.extname(att.path).slice(1);
+        modifiedInput += `\n[Attachment: ${att.path}]\n\`\`\`${ext}\n${att.content}\n\`\`\`\n`;
+      }
+    }
+
+    return { content: modifiedInput, attachments };
+  }
+
+  async autocompleteCompleter(line) {
+    const match = line.match(/@(\S*)$/);
+    if (!match) {
+      return [[], line];
+    }
+
+    const filePrefix = match[1];
+    const cwd = this.projectContextService.cwd;
+    
+    let searchDir;
+    let searchPrefix;
+
+    if (filePrefix.includes("/") || filePrefix.includes("\\")) {
+      const normalizedPath = filePrefix.replace(/\\/g, "/");
+      const lastSlashIndex = normalizedPath.lastIndexOf("/");
+      const dirPart = normalizedPath.slice(0, lastSlashIndex);
+      searchPrefix = normalizedPath.slice(lastSlashIndex + 1);
+      searchDir = path.resolve(cwd, dirPart);
+    } else {
+      searchDir = cwd;
+      searchPrefix = filePrefix;
+    }
+
+    try {
+      const entries = await this.fs.readdir(searchDir, { withFileTypes: true });
+      const hits = entries
+        .filter((entry) => {
+          if (entry.name.startsWith(".") && !searchPrefix.startsWith(".")) {
+            return false;
+          }
+          return entry.name.toLowerCase().startsWith(searchPrefix.toLowerCase());
+        })
+        .map((entry) => {
+          let relativeDir = "";
+          if (filePrefix.includes("/") || filePrefix.includes("\\")) {
+            const normalizedPath = filePrefix.replace(/\\/g, "/");
+            const lastSlashIndex = normalizedPath.lastIndexOf("/");
+            relativeDir = filePrefix.slice(0, lastSlashIndex + 1);
+          }
+          const suffix = entry.isDirectory() ? "/" : "";
+          return `@${relativeDir}${entry.name}${suffix}`;
+        });
+
+      return [hits, `@${filePrefix}`];
+    } catch {
+      return [[], `@${filePrefix}`];
     }
   }
 

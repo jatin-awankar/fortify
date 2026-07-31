@@ -88,6 +88,42 @@ export class GitService {
     return result.stdout;
   }
 
+  async getRecentCommits({ count = 3, cwd = this.cwd } = {}) {
+    const isRepository = await this.isGitRepository({ cwd });
+    if (!isRepository) {
+      return [];
+    }
+
+    const result = await this.#runGitCommand(
+      ["log", "-n", String(count), "--oneline"],
+      { cwd }
+    );
+    if (!result.ok) {
+      throw new GitServiceError("Failed to read recent git commits.", {
+        cause: this.#buildCommandError(result)
+      });
+    }
+
+    return result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+
+  async getRemoteUrl({ cwd = this.cwd } = {}) {
+    const isRepository = await this.isGitRepository({ cwd });
+    if (!isRepository) {
+      return null;
+    }
+
+    const result = await this.#runGitCommand(["config", "--get", "remote.origin.url"], { cwd });
+    if (!result.ok) {
+      return null;
+    }
+
+    return result.stdout.trim() || null;
+  }
+
   async commitWithMessage({ message, cwd = this.cwd } = {}) {
     const normalizedMessage = typeof message === "string" ? message.trim() : "";
 
