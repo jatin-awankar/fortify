@@ -270,6 +270,13 @@
     .tab-pane.active {
       display: block;
     }
+    .ascii-banner {
+      font-family: 'Fira Code', monospace;
+      white-space: pre;
+      line-height: 1.2;
+      margin-bottom: 0.5rem;
+      overflow-x: auto;
+    }
     .t-cyan { color: var(--accent-cyan); }
     .t-green { color: var(--accent-emerald); }
     .t-amber { color: var(--accent-amber); }
@@ -437,7 +444,7 @@
     <section class="hero">
       <div class="pill-badge">
         <div class="pulse-dot"></div>
-        <span>v0.5.1 Live • Multi-Provider AI Engine</span>
+        <span>v0.6.0 Live • 100% Zero-Dependency Native Engine</span>
       </div>
       <h1>The Repo-Aware AI Assistant<br><span>Built for Modern Engineers</span></h1>
       <p class="subtitle">Fortify automatically scans workspace signature files, connects to OpenAI, Anthropic Claude, Google Gemini, and offline Ollama models, and offers an interactive `$EDITOR` workflow directly in your terminal.</p>
@@ -466,13 +473,13 @@
         <div class="terminal-content">
           <!-- Tab 1: Chat -->
           <div id="tab-chat" class="tab-pane active">
-            <p class="t-cyan">  ███████╗██████╗ ██████╗ ████████╗██████╗ ███████╗██╗   ██╗</p>
-            <p class="t-cyan">  ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝╚═██╔═╝██╔════╝╚██╗ ██╔╝</p>
-            <p class="t-cyan">  █████╗  ██║   ██║██████╔╝   ██║     ██║  █████╗   ╚████╔╝ </p>
-            <p class="t-cyan">  ██╔══╝  ██║   ██║██╔══██╗   ██║     ██║  ██╔══╝    ╚██╔╝  </p>
-            <p class="t-cyan">  ██║     ╚██████╔╝██║  ██║   ██║   ██████╗██║        ██║   </p>
-            <p class="t-cyan">  ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═════╝╚═╝        ╚═╝   </p>
-            <p class="t-muted">───────────────── Fortify v0.5.1 Chat ─────────────────</p>
+            <pre class="ascii-banner t-cyan">  ███████╗██████╗ ██████╗ ████████╗██████╗ ███████╗██╗   ██╗
+  ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝╚═██╔═╝██╔════╝╚██╗ ██╔╝
+  █████╗  ██║   ██║██████╔╝   ██║     ██║  █████╗   ╚████╔╝ 
+  ██╔══╝  ██║   ██║██╔══██╗   ██║     ██║  ██╔══╝    ╚██╔╝  
+  ██║     ╚██████╔╝██║  ██║   ██║   ██████╗██║        ██║   
+  ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═════╝╚═╝        ╚═╝   </pre>
+            <p class="t-muted">───────────────── Fortify v0.6.0 Chat ─────────────────</p>
             <p class="t-green">[SUCCESS] Loaded project context: fortify (Node.js)</p>
             <p><span class="t-cyan">You &gt;</span> Please audit @src/index.js and check @security-check</p>
             <p>📎 <span class="t-muted">Loaded file: src/index.js (774 bytes)</span></p>

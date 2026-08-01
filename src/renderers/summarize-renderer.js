@@ -1,4 +1,4 @@
-import ora from "ora";
+import { NativeSpinner } from "./native-spinner.js";
 import { createTerminalUI } from "./terminal-ui.js";
 import { MarkdownTerminalRenderer } from "./markdown-terminal-renderer.js";
 
@@ -6,7 +6,7 @@ export class SummarizeRenderer {
   constructor({
     terminalUI = createTerminalUI(),
     markdownRenderer = new MarkdownTerminalRenderer({ terminalUI }),
-    oraFactory = ora
+    oraFactory = (opts) => new NativeSpinner(opts)
   } = {}) {
     this.terminalUI = terminalUI;
     this.markdownRenderer = markdownRenderer;
@@ -21,7 +21,7 @@ export class SummarizeRenderer {
       try {
         this.spinner = this.oraFactory({
           text: "Scanning workspace files...",
-          color: "cyan"
+          stdout: this.terminalUI.stdout
         }).start();
       } catch {
         this.spinner = null;
@@ -34,40 +34,53 @@ export class SummarizeRenderer {
       this.spinner.succeed(`Discovered ${fileCount} text/code files.`);
       this.spinner = null;
     } else {
-      this.terminalUI.info(`Discovered ${fileCount} text/code files.`);
+      this.terminalUI.info(`Found ${fileCount} files to analyze.`);
     }
   }
 
-  showNoFilesFound() {
+  showChunkProgress({ filePath, chunkIndex, totalChunks }) {
+    const progressMsg = `Processing [${chunkIndex + 1}/${totalChunks}] ${filePath}`;
     if (this.spinner) {
-      this.spinner.fail("No supported text/code files found at the target path.");
-      this.spinner = null;
-    } else {
-      this.terminalUI.warning("No supported text/code files found at the target path.");
+      this.spinner.text = progressMsg;
     }
   }
 
   showTokenGuardNotice(message) {
-    this.terminalUI.warning(message);
-  }
-
-  showChunkProgress({ filePath, chunkIndex, totalChunks }) {
-    this.terminalUI.info(`Summarizing ${filePath} (${chunkIndex + 1}/${totalChunks})`);
+    if (this.spinner) {
+      this.spinner.warn(message);
+      this.spinner = null;
+    } else {
+      this.terminalUI.warning(message);
+    }
   }
 
   showFinalStart() {
-    this.terminalUI.divider();
-    this.terminalUI.info("Generating final project summary...");
-    this.terminalUI.stdout.write(`${this.terminalUI.chalk.bold.green("Summary:")} `);
+    if (this.spinner) {
+      this.spinner.succeed("Workspace analysis complete.");
+      this.spinner = null;
+    }
+    this.terminalUI.divider("Executive Summary");
   }
 
   async renderFinalSummaryStream(stream, { signal } = {}) {
-    const outputText = await this.markdownRenderer.renderMarkdownStream(stream, {
+    return this.markdownRenderer.renderMarkdownStream(stream, {
       signal,
       handleCtrlC: false,
       ensureTrailingNewline: true
     });
-    return outputText.trim();
+  }
+
+  showDone() {
+    this.terminalUI.divider();
+  }
+
+  showNoFilesFound() {
+    if (this.spinner) {
+      this.spinner.fail("No text files found to summarize.");
+      this.spinner = null;
+    } else {
+      this.terminalUI.warning("No supported text files found to summarize.");
+    }
   }
 
   showError(message) {
@@ -77,10 +90,5 @@ export class SummarizeRenderer {
     } else {
       this.terminalUI.error(message);
     }
-  }
-
-  showDone() {
-    this.terminalUI.divider();
-    this.terminalUI.success("Project summary completed.");
   }
 }

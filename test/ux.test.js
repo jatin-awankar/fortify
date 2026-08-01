@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import chalk from "chalk";
+import { createAnsiStyle } from "../src/renderers/ansi-style.js";
 import { highlightCodeLine } from "../src/renderers/code-highlighter.js";
 import { SummarizeRenderer } from "../src/renderers/summarize-renderer.js";
+
+const chalk = createAnsiStyle({ forceColor: true });
 
 test("highlightCodeLine formats diff additions, deletions, and line headers", () => {
   const added = highlightCodeLine("+ const x = 1;", { language: "diff", chalk });

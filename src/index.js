@@ -1,24 +1,12 @@
-import { Command } from "commander";
-import { registerCommands } from "./commands/index.js";
-import { appMetadata } from "./config/app-metadata.js";
+import { parseAndRunNativeCli } from "./commands/native-cli-parser.js";
 import { setRuntimeOptions } from "./utils/runtime-options.js";
 
 export async function runCli(argv = process.argv) {
-  const program = new Command();
+  const rawArgs = argv.slice(2);
+  const json = rawArgs.includes("--json");
+  const verbose = rawArgs.includes("--verbose");
+  const quiet = rawArgs.includes("--quiet");
 
-  program
-    .name(appMetadata.cliName)
-    .description(appMetadata.description)
-    .version(appMetadata.version)
-    .option("--json", "Emit machine-readable JSON where supported")
-    .option("--verbose", "Show additional diagnostic output")
-    .option("--quiet", "Reduce nonessential terminal output");
-
-  program.hook("preAction", (rootCommand) => {
-    setRuntimeOptions(rootCommand.opts());
-  });
-
-  registerCommands(program);
-
-  await program.parseAsync(argv);
+  setRuntimeOptions({ json, verbose, quiet });
+  await parseAndRunNativeCli(argv);
 }
