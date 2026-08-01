@@ -3,21 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fortify AI CLI - The Repo-Aware Developer Terminal Assistant</title>
-  <meta name="description" content="AI powered developer-focused CLI for error explanation, git commit generation, codebase summarization, and terminal first workflows.">
+  <title>Fortify AI CLI - Repo-Aware Multi-Provider Developer Assistant</title>
+  <meta name="description" content="Production-grade developer CLI for codebase context scanning, multi-provider AI routing (OpenAI, Anthropic, Google Gemini, Ollama), interactive $EDITOR commits, and workspace prompt shortcuts.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-dark: #0b0f19;
-      --bg-card: rgba(17, 24, 39, 0.7);
-      --border-color: rgba(255, 255, 255, 0.1);
+      --bg-dark: #07090e;
+      --bg-card: rgba(15, 23, 42, 0.65);
+      --bg-card-hover: rgba(30, 41, 59, 0.8);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-cyan: rgba(6, 182, 212, 0.3);
       --accent-cyan: #06b6d4;
       --accent-violet: #8b5cf6;
-      --accent-green: #10b981;
-      --text-main: #f3f4f6;
-      --text-muted: #9ca3af;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
     }
 
     * {
@@ -34,33 +37,37 @@
       overflow-x: hidden;
     }
 
-    /* Gradient Background Accents */
-    .glow-1 {
+    /* Ambient Background Glows */
+    .glow-cyan {
       position: absolute;
-      top: -100px;
-      left: 20%;
-      width: 500px;
-      height: 500px;
-      background: radial-gradient(circle, rgba(6, 182, 212, 0.2) 0%, rgba(0,0,0,0) 70%);
-      pointer-events: none;
-    }
-    .glow-2 {
-      position: absolute;
-      top: 300px;
-      right: 10%;
+      top: -150px;
+      left: 15%;
       width: 600px;
       height: 600px;
-      background: radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, rgba(0,0,0,0) 70%);
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, rgba(0,0,0,0) 70%);
       pointer-events: none;
+      z-index: 0;
+    }
+    .glow-violet {
+      position: absolute;
+      top: 350px;
+      right: 10%;
+      width: 700px;
+      height: 700px;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, rgba(0,0,0,0) 70%);
+      pointer-events: none;
+      z-index: 0;
     }
 
     .container {
       max-width: 1200px;
       margin: 0 auto;
       padding: 0 2rem;
+      position: relative;
+      z-index: 1;
     }
 
-    /* Navbar */
+    /* Header Navigation */
     header {
       padding: 2rem 0;
       display: flex;
@@ -69,159 +76,328 @@
       border-bottom: 1px solid var(--border-color);
     }
     .logo {
+      font-family: 'Outfit', sans-serif;
       font-weight: 800;
-      font-size: 1.5rem;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet));
+      font-size: 1.6rem;
+      background: linear-gradient(135deg, var(--accent-cyan), #38bdf8, var(--accent-violet));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.6rem;
+      text-decoration: none;
+    }
+    nav {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
     }
     nav a {
       color: var(--text-muted);
       text-decoration: none;
-      margin-left: 2rem;
       font-weight: 500;
+      font-size: 0.95rem;
       transition: color 0.2s;
     }
     nav a:hover {
       color: var(--accent-cyan);
     }
+    .nav-btn {
+      padding: 0.5rem 1.25rem;
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid var(--border-cyan);
+      color: var(--accent-cyan) !important;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .nav-btn:hover {
+      background: var(--accent-cyan);
+      color: #000 !important;
+    }
 
     /* Hero Section */
     .hero {
-      padding: 6rem 0 4rem;
+      padding: 5rem 0 3rem;
       text-align: center;
     }
-    .badge {
-      display: inline-block;
-      padding: 0.4rem 1rem;
+    .pill-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 1.2rem;
       border-radius: 9999px;
-      background: rgba(6, 182, 212, 0.1);
-      border: 1px solid rgba(6, 182, 212, 0.3);
+      background: rgba(6, 182, 212, 0.08);
+      border: 1px solid rgba(6, 182, 212, 0.25);
       color: var(--accent-cyan);
       font-size: 0.875rem;
       font-weight: 600;
-      margin-bottom: 1.5rem;
+      margin-bottom: 2rem;
     }
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-cyan);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(6, 182, 212, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(6, 182, 212, 0); }
+    }
+
     h1 {
-      font-size: 3.5rem;
+      font-family: 'Outfit', sans-serif;
+      font-size: 3.8rem;
       font-weight: 800;
-      line-height: 1.2;
+      line-height: 1.15;
       margin-bottom: 1.5rem;
+      letter-spacing: -0.02em;
     }
     h1 span {
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet));
+      background: linear-gradient(135deg, var(--accent-cyan), #38bdf8, var(--accent-violet));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
     .subtitle {
-      font-size: 1.25rem;
+      font-size: 1.2rem;
       color: var(--text-muted);
-      max-width: 700px;
+      max-width: 760px;
       margin: 0 auto 3rem;
+      font-weight: 400;
     }
 
-    /* Command Card Snippet */
+    /* Command Copy Box */
     .cmd-box {
-      background: #111827;
-      border: 1px solid var(--border-color);
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-cyan);
       border-radius: 12px;
-      padding: 1.25rem 2rem;
-      max-width: 550px;
-      margin: 0 auto 4rem;
+      padding: 0.9rem 1.5rem;
+      max-width: 580px;
+      margin: 0 auto 3.5rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-family: 'Fira Code', monospace;
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
     }
-    .cmd-box code {
-      color: var(--accent-cyan);
+    .cmd-text {
+      color: #38bdf8;
+      font-size: 1.05rem;
     }
     .btn-copy {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
+      background: rgba(6, 182, 212, 0.15);
+      border: 1px solid var(--accent-cyan);
+      color: var(--text-main);
+      padding: 0.5rem 1.2rem;
+      border-radius: 8px;
       cursor: pointer;
+      font-size: 0.875rem;
       font-weight: 600;
-      transition: background 0.2s;
+      transition: all 0.2s;
     }
     .btn-copy:hover {
       background: var(--accent-cyan);
       color: #000;
     }
 
-    /* Terminal Demo Box */
-    .terminal-window {
-      background: #0d1117;
+    /* Live Interactive Terminal Box */
+    .terminal-container {
+      background: #0b0e17;
       border: 1px solid var(--border-color);
-      border-radius: 12px;
-      max-width: 900px;
+      border-radius: 16px;
+      max-width: 960px;
       margin: 0 auto 6rem;
       overflow: hidden;
-      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.8);
+      text-align: left;
     }
-    .terminal-header {
-      background: #161b22;
-      padding: 0.75rem 1rem;
+    .terminal-bar {
+      background: #131825;
+      padding: 0.8rem 1.2rem;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .window-dots {
+      display: flex;
+      gap: 6px;
     }
     .dot {
       width: 12px;
       height: 12px;
       border-radius: 50%;
     }
-    .dot-red { background: #ef4444; }
-    .dot-yellow { background: #f59e0b; }
-    .dot-green { background: #10b981; }
-    .terminal-body {
-      padding: 1.5rem;
+    .dot-close { background: #ef4444; }
+    .dot-min { background: #f59e0b; }
+    .dot-max { background: #10b981; }
+
+    .terminal-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-left: 1.5rem;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.35rem 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
       font-family: 'Fira Code', monospace;
-      font-size: 0.95rem;
-      text-align: left;
-      line-height: 1.7;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .tab-btn.active, .tab-btn:hover {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--accent-cyan);
+    }
+
+    .terminal-content {
+      padding: 1.75rem;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.92rem;
+      line-height: 1.75;
+      min-height: 280px;
+    }
+    .tab-pane {
+      display: none;
+    }
+    .tab-pane.active {
+      display: block;
     }
     .t-cyan { color: var(--accent-cyan); }
-    .t-green { color: var(--accent-green); }
+    .t-green { color: var(--accent-emerald); }
+    .t-amber { color: var(--accent-amber); }
     .t-muted { color: var(--text-muted); }
-    .t-yellow { color: #f59e0b; }
+    .t-violet { color: var(--accent-violet); }
 
-    /* Features Grid */
-    .features-grid {
+    /* Provider Matrix Grid */
+    .providers-section {
+      padding: 4rem 0;
+    }
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.4rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    .section-subtitle {
+      text-align: center;
+      color: var(--text-muted);
+      margin-bottom: 3.5rem;
+      font-size: 1.1rem;
+    }
+
+    .provider-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 2rem;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.75rem;
       margin-bottom: 6rem;
     }
-    .feature-card {
+    .provider-card {
       background: var(--bg-card);
       backdrop-filter: blur(12px);
       border: 1px solid var(--border-color);
-      padding: 2rem;
       border-radius: 16px;
-      transition: transform 0.3s, border-color 0.3s;
+      padding: 1.75rem;
+      transition: all 0.3s;
+      position: relative;
     }
-    .feature-card:hover {
-      transform: translateY(-5px);
+    .provider-card:hover {
+      transform: translateY(-6px);
       border-color: var(--accent-cyan);
+      box-shadow: 0 20px 30px -10px rgba(6, 182, 212, 0.15);
     }
-    .feature-icon {
-      font-size: 2rem;
+    .provider-card.featured {
+      border-color: var(--accent-emerald);
+      background: rgba(16, 185, 129, 0.05);
+    }
+    .p-tag {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald);
+    }
+    .provider-icon {
+      font-size: 2.2rem;
       margin-bottom: 1rem;
     }
-    .feature-card h3 {
-      font-size: 1.25rem;
-      margin-bottom: 0.75rem;
+    .provider-card h3 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.3rem;
+      margin-bottom: 0.5rem;
     }
-    .feature-card p {
+    .provider-card p {
       color: var(--text-muted);
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    /* Comparison Table */
+    .comparison-section {
+      margin-bottom: 6rem;
+    }
+    .table-wrapper {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th, td {
+      padding: 1.2rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
       font-size: 0.95rem;
+    }
+    th {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    td strong {
+      color: var(--accent-cyan);
+    }
+
+    /* Commands Reference Grid */
+    .cmd-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 6rem;
+    }
+    .cmd-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .cmd-item code {
+      font-family: 'Fira Code', monospace;
+      color: var(--accent-cyan);
+      font-size: 1rem;
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    .cmd-item p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
     }
 
     /* Footer */
@@ -232,97 +408,272 @@
       color: var(--text-muted);
       font-size: 0.9rem;
     }
+    footer a {
+      color: var(--accent-cyan);
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
-  <div class="glow-1"></div>
-  <div class="glow-2"></div>
+  <div class="glow-cyan"></div>
+  <div class="glow-violet"></div>
 
   <div class="container">
+    <!-- Header -->
     <header>
-      <div class="logo">
+      <a href="#" class="logo">
         🛡️ Fortify AI CLI
-      </div>
+      </a>
       <nav>
-        <a href="#features">Features</a>
-        <a href="#demo">Demo</a>
-        <a href="https://github.com/jatin-awankar/fortify" target="_blank">GitHub</a>
-        <a href="https://www.npmjs.com/package/fortify-ai-cli" target="_blank">NPM</a>
+        <a href="#providers">Providers</a>
+        <a href="#demo">Interactive Terminal</a>
+        <a href="#comparison">Matrix</a>
+        <a href="#commands">Commands</a>
+        <a href="https://github.com/jatin-awankar/fortify" target="_blank" class="nav-btn">GitHub Repo</a>
       </nav>
     </header>
 
+    <!-- Hero Section -->
     <section class="hero">
-      <div class="badge">🚀 v0.5.1 Now Released (Multi-Provider & Google Gemini Support)</div>
-      <h1>The Repo-Aware AI Assistant<br><span>Built for Your Terminal</span></h1>
-      <p class="subtitle">Fortify scans your repository stack, auto-detects codebase context, connects to pluggable AI providers (OpenAI, Anthropic Claude, Google Gemini, Ollama), and offers an interactive `$EDITOR` workflow directly in your shell.</p>
+      <div class="pill-badge">
+        <div class="pulse-dot"></div>
+        <span>v0.5.1 Live • Multi-Provider AI Engine</span>
+      </div>
+      <h1>The Repo-Aware AI Assistant<br><span>Built for Modern Engineers</span></h1>
+      <p class="subtitle">Fortify automatically scans workspace signature files, connects to OpenAI, Anthropic Claude, Google Gemini, and offline Ollama models, and offers an interactive `$EDITOR` workflow directly in your terminal.</p>
 
       <div class="cmd-box">
-        <code>$ npm install -g fortify-ai-cli</code>
-        <button class="btn-copy" onclick="navigator.clipboard.writeText('npm install -g fortify-ai-cli')">Copy</button>
+        <span class="cmd-text">$ npm install -g fortify-ai-cli</span>
+        <button class="btn-copy" id="copyBtn" onclick="copyInstallCmd()">Copy</button>
       </div>
 
-      <div class="terminal-window" id="demo">
-        <div class="terminal-header">
-          <div class="dot dot-red"></div>
-          <div class="dot dot-yellow"></div>
-          <div class="dot dot-green"></div>
-          <span class="t-muted" style="margin-left: auto; font-size: 0.8rem;">bash - fortify chat</span>
+      <!-- Live Terminal Showcase -->
+      <div class="terminal-container" id="demo">
+        <div class="terminal-bar">
+          <div class="window-dots">
+            <div class="dot dot-close"></div>
+            <div class="dot dot-min"></div>
+            <div class="dot dot-max"></div>
+          </div>
+          <div class="terminal-tabs">
+            <button class="tab-btn active" onclick="switchTab(event, 'tab-chat')">fortify chat</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-auth')">fortify auth</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-commit')">fortify commit -i</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-init')">fortify init</button>
+          </div>
         </div>
-        <div class="terminal-body">
-          <p class="t-cyan">  ███████╗██████╗ ██████╗ ████████╗██████╗ ███████╗██╗   ██╗</p>
-          <p class="t-cyan">  ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝╚═██╔═╝██╔════╝╚██╗ ██╔╝</p>
-          <p class="t-cyan">  █████╗  ██║   ██║██████╔╝   ██║     ██║  █████╗   ╚████╔╝ </p>
-          <p class="t-cyan">  ██╔══╝  ██║   ██║██╔══██╗   ██║     ██║  ██╔══╝    ╚██╔╝  </p>
-          <p class="t-cyan">  ██║     ╚██████╔╝██║  ██║   ██║   ██████╗██║        ██║   </p>
-          <p class="t-cyan">  ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═════╝╚═╝        ╚═╝   </p>
-          <p class="t-muted">---------------- Fortify v0.5.1 Chat ----------------</p>
-          <p class="t-green">[SUCCESS] Loaded project context: fortify (Node.js)</p>
-          <p><span class="t-cyan">You &gt;</span> Please audit @src/index.js and check @security-check</p>
-          <p>📎 <span class="t-muted">Loaded file: src/index.js (774 bytes)</span></p>
-          <p><span class="t-green">Assistant &gt;</span> I have audited src/index.js against OWASP guidelines...</p>
+
+        <div class="terminal-content">
+          <!-- Tab 1: Chat -->
+          <div id="tab-chat" class="tab-pane active">
+            <p class="t-cyan">  ███████╗██████╗ ██████╗ ████████╗██████╗ ███████╗██╗   ██╗</p>
+            <p class="t-cyan">  ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝╚═██╔═╝██╔════╝╚██╗ ██╔╝</p>
+            <p class="t-cyan">  █████╗  ██║   ██║██████╔╝   ██║     ██║  █████╗   ╚████╔╝ </p>
+            <p class="t-cyan">  ██╔══╝  ██║   ██║██╔══██╗   ██║     ██║  ██╔══╝    ╚██╔╝  </p>
+            <p class="t-cyan">  ██║     ╚██████╔╝██║  ██║   ██║   ██████╗██║        ██║   </p>
+            <p class="t-cyan">  ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═════╝╚═╝        ╚═╝   </p>
+            <p class="t-muted">───────────────── Fortify v0.5.1 Chat ─────────────────</p>
+            <p class="t-green">[SUCCESS] Loaded project context: fortify (Node.js)</p>
+            <p><span class="t-cyan">You &gt;</span> Please audit @src/index.js and check @security-check</p>
+            <p>📎 <span class="t-muted">Loaded file: src/index.js (774 bytes)</span></p>
+            <p><span class="t-green">Assistant &gt;</span> I have audited src/index.js against security guidelines. No exposed secrets detected.</p>
+          </div>
+
+          <!-- Tab 2: Auth -->
+          <div id="tab-auth" class="tab-pane">
+            <p class="t-muted">──────────────── Authentication & Provider Setup ────────────────</p>
+            <p>Select active AI Provider to configure:</p>
+            <p class="t-cyan">  1) OpenAI (GPT-5.4, GPT-5.3)</p>
+            <p class="t-cyan">  2) Anthropic (Claude 3.5 Sonnet)</p>
+            <p class="t-green">  3) Google Gemini (Gemini 2.0 Flash / 1.5 Pro - Free Tier Available)</p>
+            <p class="t-cyan">  4) Ollama (Local LLM)</p>
+            <p><span class="t-cyan">Choice [1-4]:</span> 3</p>
+            <p class="t-green">[SUCCESS] Google Gemini API key saved and active provider set to 'gemini' in ~/.fortify/config.json</p>
+          </div>
+
+          <!-- Tab 3: Commit -->
+          <div id="tab-commit" class="tab-pane">
+            <p class="t-muted">──────────────── Interactive Commit Assistant ────────────────</p>
+            <p class="t-cyan">Branch: main | Style: conventional | Scope: cli</p>
+            <p class="t-amber">Diff Summary: 3 files changed, 45 insertions(+), 2 deletions(-)</p>
+            <p class="t-green">Generating commit message suggestion...</p>
+            <p>Opening $EDITOR (code --wait) for interactive fine-tuning...</p>
+            <p class="t-green">[SUCCESS] Conventional Commits format validation passed!</p>
+            <p class="t-cyan">Committed: "feat(cli): add Google Gemini multi-provider support"</p>
+          </div>
+
+          <!-- Tab 4: Init -->
+          <div id="tab-init" class="tab-pane">
+            <p class="t-muted">──────────────── Project Initialization ────────────────</p>
+            <p>Scanning directory for framework signatures...</p>
+            <p class="t-green">✔ Detected project stack: Node.js (package.json detected)</p>
+            <p class="t-green">✔ Created workspace config: .fortify/project.json</p>
+            <p class="t-green">✔ Updated .gitignore to exclude local credentials</p>
+            <p class="t-cyan">Your workspace is now fortified! Run `fortify chat` to start.</p>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="features">
-      <h2 style="text-align: center; font-size: 2.25rem; margin-bottom: 3rem;">Why Developers Choose <span>Fortify</span></h2>
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">🧠</div>
-          <h3>Repo-Aware Context</h3>
-          <p>Scans workspace signature files (`package.json`, `Cargo.toml`, `requirements.txt`, `go.mod`) to automatically tailor system prompts to your project stack.</p>
+    <!-- Provider Selection Matrix -->
+    <section id="providers" class="providers-section">
+      <h2 class="section-title">Pluggable AI Backends</h2>
+      <p class="section-subtitle">Switch seamlessly between cloud leaders or run 100% offline local LLMs.</p>
+
+      <div class="provider-grid">
+        <div class="provider-card">
+          <div class="provider-icon">🟢</div>
+          <h3>OpenAI</h3>
+          <p>Full support for GPT-5.4, GPT-5.3, and lightweight fallback models with streaming responses.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">📎</div>
-          <h3>Smart `@file` References</h3>
-          <p>Attach code files directly in prompt queries with `@path/file.js`. Supports size safety limits and readline Tab-autocomplete.</p>
+        <div class="provider-card">
+          <div class="provider-icon">🟧</div>
+          <h3>Anthropic Claude</h3>
+          <p>Native Claude 3.5 Sonnet & Claude 3 Opus streaming via Anthropic Messages REST API.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">✏️</div>
-          <h3>Interactive `$EDITOR` Workflow</h3>
-          <p>Draft commit messages with AI, then fine-tune them in your favorite terminal text editor (`code --wait`, `notepad`, `nano`, `vim`) with format validation.</p>
+        <div class="provider-card featured">
+          <div class="p-tag">Free Tier</div>
+          <div class="provider-icon">✨</div>
+          <h3>Google Gemini</h3>
+          <p>Gemini 2.0 Flash & 1.5 Pro integration with generous free tier token quotas from Google AI Studio.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">🔌</div>
-          <h3>Pluggable Backends</h3>
-          <p>Switch seamlessly between OpenAI, Anthropic Claude 3.5 Sonnet, or local offline Ollama models with a single config flag.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🧩</div>
-          <h3>Extensible Shortcuts & Rules</h3>
-          <p>Define custom prompt shortcuts (e.g. `@security-check`, `@refactor`) in `.fortify/plugins/` and custom project instructions in `.fortify/rules.md`.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🎨</div>
-          <h3>Rich Terminal TUI</h3>
-          <p>Enjoy diff syntax color highlighting (`+` green, `-` red), border box status alerts, `ora` spinners, and tabular column alignment.</p>
+        <div class="provider-card">
+          <div class="provider-icon">🦙</div>
+          <h3>Ollama (Local)</h3>
+          <p>100% offline local LLM execution (Llama 3, DeepSeek, Mistral) over local HTTP port 11434.</p>
         </div>
       </div>
     </section>
 
+    <!-- Feature Comparison Matrix -->
+    <section id="comparison" class="comparison-section">
+      <h2 class="section-title">Why Fortify Leads the Top 1%</h2>
+      <p class="section-subtitle">Compare Fortify against existing developer CLI assistants.</p>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>🛡️ Fortify CLI</th>
+              <th>GitHub Copilot CLI</th>
+              <th>Aider</th>
+              <th>Cursor CLI</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Multi-Provider (OpenAI, Anthropic, Gemini, Ollama)</strong></td>
+              <td>✅ <strong>Native (`-p, --provider`)</strong></td>
+              <td>❌ (OpenAI only)</td>
+              <td>✅</td>
+              <td>❌ (Proprietary)</td>
+            </tr>
+            <tr>
+              <td><strong>Repo Stack Auto-Detection (`fortify init`)</strong></td>
+              <td>✅ <strong>Built-in</strong></td>
+              <td>❌</td>
+              <td>❌</td>
+              <td>⚠️ Basic</td>
+            </tr>
+            <tr>
+              <td><strong>Interactive `$EDITOR` Commit Workflow</strong></td>
+              <td>✅ <strong>Built-in (`-i`)</strong></td>
+              <td>❌</td>
+              <td>❌</td>
+              <td>❌</td>
+            </tr>
+            <tr>
+              <td><strong>Workspace Prompt Shortcuts (`.fortify/plugins`)</strong></td>
+              <td>✅ <strong>Native</strong></td>
+              <td>❌</td>
+              <td>❌</td>
+              <td>❌</td>
+            </tr>
+            <tr>
+              <td><strong>Smart `@file` Reference Autocomplete</strong></td>
+              <td>✅ <strong>Native</strong></td>
+              <td>❌</td>
+              <td>✅</td>
+              <td>❌</td>
+            </tr>
+            <tr>
+              <td><strong>Conventional Commits Format Validator</strong></td>
+              <td>✅ <strong>Native (`--validate`)</strong></td>
+              <td>❌</td>
+              <td>❌</td>
+              <td>❌</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Commands Quick Reference -->
+    <section id="commands" style="margin-bottom: 6rem;">
+      <h2 class="section-title">Command Reference</h2>
+      <p class="section-subtitle">Powerful terminal triggers designed for developer speed.</p>
+
+      <div class="cmd-grid">
+        <div class="cmd-item">
+          <code>fortify auth</code>
+          <p>Interactive credential setup for OpenAI, Anthropic, Gemini, or Ollama.</p>
+        </div>
+        <div class="cmd-item">
+          <code>fortify chat -p gemini</code>
+          <p>Start interactive session overriding AI provider or model on the fly.</p>
+        </div>
+        <div class="cmd-item">
+          <code>fortify commit -i --validate</code>
+          <p>Draft commit messages, edit in `$EDITOR`, and validate format before committing.</p>
+        </div>
+        <div class="cmd-item">
+          <code>fortify explain ./logs/error.txt</code>
+          <p>Analyze stack traces, runtime errors, or inline code snippets.</p>
+        </div>
+        <div class="cmd-item">
+          <code>fortify summarize src/</code>
+          <p>Recursively summarize codebase directory structure with token safety caps.</p>
+        </div>
+        <div class="cmd-item">
+          <code>fortify plugin list</code>
+          <p>Inspect local workspace prompt shortcuts (`@security-check`, `@refactor`).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
     <footer>
-      <p>© 2026 Fortify AI CLI • Released under the MIT License • Built for Top 1% Engineering Workflows</p>
+      <p>© 2026 Fortify AI CLI • Released under the <a href="https://github.com/jatin-awankar/fortify/blob/main/LICENSE" target="_blank">MIT License</a> • Maintained by <a href="https://github.com/jatin-awankar" target="_blank">Jatin Awankar</a></p>
     </footer>
   </div>
+
+  <script>
+    function copyInstallCmd() {
+      const text = 'npm install -g fortify-ai-cli';
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = 'Copied! ✓';
+        btn.style.background = '#10b981';
+        btn.style.color = '#000';
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.style.background = 'rgba(6, 182, 212, 0.15)';
+          btn.style.color = 'var(--text-main)';
+        }, 2000);
+      });
+    }
+
+    function switchTab(evt, tabId) {
+      const tabBtns = document.querySelectorAll('.tab-btn');
+      const tabPanes = document.querySelectorAll('.tab-pane');
+
+      tabBtns.forEach(btn => btn.classList.remove('active'));
+      tabPanes.forEach(pane => pane.classList.remove('active'));
+
+      evt.currentTarget.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+  </script>
 </body>
 </html>
