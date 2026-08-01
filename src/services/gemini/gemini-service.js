@@ -1,13 +1,14 @@
 import { loadRuntimeConfig } from "../../config/index.js";
 import { parseApiErrorResponse } from "../../utils/api-error-parser.js";
 
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const DEFAULT_GEMINI_MODEL = "gemini-1.5-flash";
 const STATIC_FALLBACK_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
   "gemini-1.5-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3-flash",
   "gemini-1.5-pro",
-  "gemini-3.1-flash-lite"
+  "gemini-2.5-flash-lite"
 ];
 
 export class GeminiConfigurationError extends Error {
@@ -108,11 +109,13 @@ export class GeminiService {
         return; // Success
       } catch (err) {
         lastError = err;
-        const isQuotaErr = err?.message?.includes("429") || err?.message?.includes("quota") || err?.message?.includes("RESOURCE_EXHAUSTED");
-        if (!isQuotaErr) {
+        const msg = (err?.message || "").toLowerCase();
+        const shouldFallback = msg.includes("429") || msg.includes("404") || msg.includes("quota") || msg.includes("resource_exhausted") || msg.includes("no longer available") || msg.includes("not_found");
+        
+        if (!shouldFallback) {
           throw err;
         }
-        // If quota error (429), try next model in dynamic fallback chain
+        // If 404 (model deprecated) or 429 (quota limit), automatically try next model in chain
       }
     }
 

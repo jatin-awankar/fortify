@@ -6,46 +6,44 @@ export function createAnsiStyle({ env = process.env, forceColor = null } = {}) {
 
   const shouldUseColor = force !== null ? force : (!noColor && Boolean(process.stdout?.isTTY));
 
-  function wrap(format, text) {
-    if (!shouldUseColor || !text) return String(text ?? "");
-    try {
-      return styleText(format, String(text));
-    } catch {
-      return String(text);
-    }
+  function createChainer(formats = []) {
+    const fn = (text) => {
+      if (text === undefined || text === null) return "";
+      const strText = String(text);
+      if (!shouldUseColor || !strText || formats.length === 0) return strText;
+
+      try {
+        const validFormats = formats
+          .map((f) => {
+            if (f === "cyanBright") return "cyan";
+            if (f === "greenBright") return "green";
+            if (f === "redBright") return "red";
+            if (f === "yellowBright") return "yellow";
+            if (f === "magentaBright") return "magenta";
+            if (f === "whiteBright") return "white";
+            if (f === "blueBright") return "blue";
+            if (f === "bgBlackBright") return "gray";
+            return f;
+          })
+          .filter(Boolean);
+
+        return styleText(validFormats, strText);
+      } catch {
+        return strText;
+      }
+    };
+
+    return new Proxy(fn, {
+      get(target, prop) {
+        if (prop === "shouldUseColor") return shouldUseColor;
+        if (prop in target) return target[prop];
+        if (typeof prop === "string") {
+          return createChainer([...formats, prop]);
+        }
+        return target[prop];
+      }
+    });
   }
 
-  function styleFn(format) {
-    const fn = (text) => wrap(format, text);
-    return fn;
-  }
-
-  const baseStyle = (text) => String(text ?? "");
-
-  baseStyle.cyan = styleFn("cyan");
-  baseStyle.green = styleFn("green");
-  baseStyle.yellow = styleFn("yellow");
-  baseStyle.red = styleFn("red");
-  baseStyle.gray = styleFn("gray");
-  baseStyle.magenta = styleFn("magenta");
-  baseStyle.blue = styleFn("blue");
-  baseStyle.white = styleFn("white");
-  baseStyle.bold = styleFn("bold");
-  baseStyle.dim = styleFn("dim");
-  baseStyle.italic = styleFn("italic");
-  baseStyle.underline = styleFn("underline");
-
-  baseStyle.magentaBright = styleFn("magenta");
-  baseStyle.cyanBright = styleFn("cyan");
-  baseStyle.greenBright = styleFn("green");
-  baseStyle.redBright = styleFn("red");
-  baseStyle.yellowBright = styleFn("yellow");
-  baseStyle.whiteBright = styleFn("white");
-
-  baseStyle.bold.cyan = (text) => wrap(["bold", "cyan"], text);
-  baseStyle.bold.green = (text) => wrap(["bold", "green"], text);
-  baseStyle.bold.yellow = (text) => wrap(["bold", "yellow"], text);
-  baseStyle.bold.red = (text) => wrap(["bold", "red"], text);
-
-  return baseStyle;
+  return createChainer([]);
 }

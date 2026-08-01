@@ -19,6 +19,9 @@ test("createAnsiStyle formats text natively using node:util styleText", () => {
   const style = createAnsiStyle({ forceColor: true });
   const formatted = style.cyan("Fortify");
   assert.ok(formatted.includes("Fortify"));
+
+  const chained = style.bgBlackBright.white("inline code");
+  assert.ok(chained.includes("inline code"));
 });
 
 test("NativeSpinner handles start, stop, and succeed without external packages", () => {

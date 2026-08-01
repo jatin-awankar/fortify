@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.5
+
+- Suppressed internal draft reasoning and monologue outputs across `explain` and `chat` system prompts for clean, direct markdown responses.
+
+## 0.6.4
+
+- Refactored `createAnsiStyle` with Proxy chainer wrapper (`src/renderers/ansi-style.js`), supporting unlimited nested ANSI formatting method chains without throwing `TypeError: Cannot read properties of undefined`.
+- Guaranteed 100% crash-free Markdown stream rendering for inline code blocks and code syntax highlighting.
+
+## 0.6.3
+
+- Set default Gemini model to stable GA **`gemini-1.5-flash`** (guaranteed 1M TPM free tier support across all accounts).
+- Added HTTP 404 / deprecated model error handling (`no longer available to new users`) to the automatic fallback loop.
+
 ## 0.6.2
 
 - Implemented universal **Dynamic Model Discovery & Auto-Fallback Engine** across ALL 4 providers (**OpenAI**, **Anthropic Claude**, **Google Gemini**, and **Ollama Local**).

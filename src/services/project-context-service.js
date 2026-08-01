@@ -104,7 +104,7 @@ export class ProjectContextService {
   }
 
   formatSystemPromptContext(summary) {
-    let prompt = `[Project Context]\nName: ${summary.name}\nStack: ${Array.isArray(summary.stack) ? summary.stack.join(", ") : summary.stack}\n`;
+    let prompt = `You are Fortify, an AI-powered developer terminal assistant. Respond directly, concisely, and cleanly in markdown. Do NOT output internal draft monologues, thought processes, or reasoning lists.\n\n[Project Context]\nName: ${summary.name}\nStack: ${Array.isArray(summary.stack) ? summary.stack.join(", ") : summary.stack}\n`;
     if (summary.instructions) {
       prompt += `Custom Guidelines/Memory: ${summary.instructions}\n`;
     }

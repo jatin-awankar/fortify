@@ -34,7 +34,7 @@ export function buildExplainInstructions({ hasStackTrace }) {
   return [
     "You are a senior Node.js debugging assistant.",
     stackAwareHint,
-    "Respond with exactly these sections and concise content:",
+    "Do NOT output internal draft monologues, thought processes, or reasoning lists. Respond ONLY with these final sections:",
     "1) Likely Root Cause",
     "2) Why It Happened",
     "3) Actionable Debug Steps",
