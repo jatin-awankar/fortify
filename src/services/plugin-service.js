@@ -86,7 +86,7 @@ export class PluginService {
     return shortcuts;
   }
 
-  async expandPromptShortcuts(text) {
+  async expandPromptShortcuts(text, visited = new Set()) {
     if (typeof text !== "string" || !text.includes("@")) {
       return text;
     }
@@ -95,7 +95,8 @@ export class PluginService {
     let expandedText = text;
 
     for (const [shortcut, expansion] of Object.entries(shortcuts)) {
-      if (expandedText.includes(shortcut)) {
+      if (expandedText.includes(shortcut) && !visited.has(shortcut)) {
+        visited.add(shortcut);
         expandedText = expandedText.replaceAll(shortcut, `[Shortcut: ${shortcut} -> "${expansion}"]`);
       }
     }

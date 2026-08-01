@@ -300,6 +300,20 @@ export class OpenAIService {
           }
         }
       }
+
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith("data: ")) {
+          const dataStr = trimmed.slice(6);
+          if (dataStr !== "[DONE]") {
+            try {
+              const data = JSON.parse(dataStr);
+              const textChunk = data.choices?.[0]?.delta?.content;
+              if (textChunk) yield { type: "text_delta", delta: textChunk };
+            } catch {}
+          }
+        }
+      }
     } finally {
       reader.releaseLock?.();
     }

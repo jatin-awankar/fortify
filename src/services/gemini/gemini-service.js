@@ -110,12 +110,12 @@ export class GeminiService {
       } catch (err) {
         lastError = err;
         const msg = (err?.message || "").toLowerCase();
-        const shouldFallback = msg.includes("429") || msg.includes("404") || msg.includes("quota") || msg.includes("resource_exhausted") || msg.includes("no longer available") || msg.includes("not_found");
+        const shouldFallback = msg.includes("429") || msg.includes("404") || msg.includes("503") || msg.includes("quota") || msg.includes("resource_exhausted") || msg.includes("no longer available") || msg.includes("not_found") || msg.includes("high demand") || msg.includes("unavailable") || msg.includes("overloaded");
         
         if (!shouldFallback) {
           throw err;
         }
-        // If 404 (model deprecated) or 429 (quota limit), automatically try next model in chain
+        // If 404 (deprecated), 429 (quota), or 503 (high demand), automatically try next model in chain
       }
     }
 
@@ -218,6 +218,20 @@ export class GeminiService {
             } catch {
               // ignore invalid JSON chunks
             }
+          }
+        }
+      }
+
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith("data: ")) {
+          const dataStr = trimmed.slice(6);
+          if (dataStr !== "[DONE]") {
+            try {
+              const data = JSON.parse(dataStr);
+              const textChunk = data.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (textChunk) yield { type: "text_delta", delta: textChunk };
+            } catch {}
           }
         }
       }

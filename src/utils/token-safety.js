@@ -3,7 +3,8 @@ export function estimateTokenCountFromText(text) {
     return 0;
   }
 
-  return Math.ceil(text.length / 4);
+  const byteLength = Buffer.byteLength(text, "utf8");
+  return Math.max(1, Math.ceil(byteLength / 3.5));
 }
 
 export function trimItemsToTokenBudget(

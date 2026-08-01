@@ -99,6 +99,9 @@ export class GitService {
       { cwd }
     );
     if (!result.ok) {
+      if (result.exitCode === NON_GIT_EXIT_CODE) {
+        return [];
+      }
       throw new GitServiceError("Failed to read recent git commits.", {
         cause: this.#buildCommandError(result)
       });
@@ -171,6 +174,7 @@ export class GitService {
     return new Promise((resolve, reject) => {
       const childProcess = spawn("git", args, {
         cwd,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true
       });

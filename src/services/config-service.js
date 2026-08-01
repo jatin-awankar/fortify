@@ -49,6 +49,10 @@ function redactConfigValue(keyPath, value) {
     return "";
   }
 
+  if (value.length <= 11) {
+    return "****";
+  }
+
   return `${value.slice(0, 7)}...${value.slice(-4)}`;
 }
 

@@ -111,10 +111,13 @@ export async function parseAndRunNativeCli(argv = process.argv, commandService =
     strict: false
   });
 
-  const commandName = positionals[0] || "";
+  const KNOWN_COMMANDS = new Set(["auth", "init", "plugin", "config", "explain", "commit", "summarize", "chat", "history", "help"]);
+  const cmdIdx = positionals.findIndex((p) => KNOWN_COMMANDS.has(p));
+  const commandName = cmdIdx >= 0 ? positionals[cmdIdx] : (positionals[0] || "");
+  const commandArgs = cmdIdx >= 0 ? positionals.slice(cmdIdx + 1) : positionals.slice(1);
 
   if (commandName === "help") {
-    printHelpText(positionals[1]);
+    printHelpText(commandArgs[0]);
     process.exitCode = 0;
     return;
   }
@@ -130,26 +133,25 @@ export async function parseAndRunNativeCli(argv = process.argv, commandService =
   }
 
   if (commandName === "plugin") {
-    const action = positionals[1] || "list";
+    const action = commandArgs[0] || "list";
     if (action === "init") {
-      await commandService.pluginService.initPluginTemplates();
-      console.log("Plugin template initialized in .fortify/plugins/");
+      await commandService.initPluginTemplates();
     } else {
-      await commandService.pluginService.listPlugins();
+      await commandService.listPlugins();
     }
     return;
   }
 
   if (commandName === "config") {
-    const action = positionals[1] || "list";
-    const key = positionals[2] || "";
-    const value = positionals[3] || "";
+    const action = commandArgs[0] || "list";
+    const key = commandArgs[1] || "";
+    const value = commandArgs[2] || "";
     await commandService.config({ action, key, value });
     return;
   }
 
   if (commandName === "explain") {
-    const target = positionals[1] || "";
+    const target = commandArgs[0] || "";
     await commandService.explain({
       target,
       context: values.context || "",
@@ -174,7 +176,7 @@ export async function parseAndRunNativeCli(argv = process.argv, commandService =
   }
 
   if (commandName === "summarize") {
-    const source = positionals[1] || "";
+    const source = commandArgs[0] || "";
     await commandService.summarize({
       source,
       format: values.format || "bullet",
@@ -196,10 +198,12 @@ export async function parseAndRunNativeCli(argv = process.argv, commandService =
   }
 
   if (commandName === "history") {
+    const isClear = Boolean(values.clear || commandArgs[0] === "clear");
+    const showTarget = values.show || (commandArgs[0] && commandArgs[0] !== "clear" ? commandArgs[0] : "");
     await commandService.history({
-      list: Boolean(values.list || !positionals[1]),
-      show: values.show || positionals[1] || "",
-      clear: Boolean(values.clear)
+      list: Boolean(values.list || (!showTarget && !isClear)),
+      show: showTarget,
+      clear: isClear
     });
     return;
   }

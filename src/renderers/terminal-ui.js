@@ -57,7 +57,8 @@ export class TerminalUI {
     if (this.#shouldSuppressNonErrorOutput()) {
       return;
     }
-    const width = Math.max(20, Math.min(this.stdout.columns ?? DEFAULT_DIVIDER_WIDTH, 120));
+    const cols = Number.isFinite(this.stdout?.columns) && this.stdout.columns > 0 ? this.stdout.columns : DEFAULT_DIVIDER_WIDTH;
+    const width = Math.max(20, Math.min(cols, 120));
     const content = label ? ` ${label.trim()} ` : "";
     const base = width - content.length;
 
@@ -73,12 +74,10 @@ export class TerminalUI {
   }
 
   createSpinner(text, options = {}) {
-    return ora({
+    return new NativeSpinner({
       text,
       stream: this.stderr,
-      isEnabled: this.capabilities.shouldUseSpinner,
-      isSilent: !this.capabilities.shouldUseSpinner || this.#shouldSuppressNonErrorOutput(),
-      discardStdin: false,
+      isEnabled: this.capabilities.shouldUseSpinner && !this.#shouldSuppressNonErrorOutput(),
       ...options
     });
   }

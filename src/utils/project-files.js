@@ -1,7 +1,18 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 
-const IGNORED_DIRECTORY_NAMES = new Set(["node_modules", ".git", "dist"]);
+const IGNORED_DIRECTORY_NAMES = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  ".next",
+  ".fortify",
+  "build",
+  "out",
+  ".cache",
+  ".coverage",
+  "coverage"
+]);
 const TEXT_FILE_EXTENSIONS = new Set([
   ".js",
   ".jsx",

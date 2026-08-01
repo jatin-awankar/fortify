@@ -155,6 +155,15 @@ export class OllamaService {
           }
         }
       }
+
+      if (buffer.trim()) {
+        try {
+          const data = JSON.parse(buffer.trim());
+          if (data.message?.content) {
+            yield { type: "text_delta", delta: data.message.content };
+          }
+        } catch {}
+      }
     } finally {
       reader.releaseLock?.();
     }

@@ -99,6 +99,34 @@ export class AuthService {
     }
   }
 
+  validateKeyFormat(providerKey, apiKey) {
+    if (typeof apiKey !== "string" || !apiKey.trim()) {
+      return { valid: false, reason: "API key cannot be empty." };
+    }
+
+    const key = apiKey.trim();
+
+    if (providerKey === "openai") {
+      if (!key.startsWith("sk-") || key.length < 20) {
+        return { valid: false, reason: "Invalid OpenAI API key format. Keys must start with 'sk-' and be at least 20 characters long." };
+      }
+    }
+
+    if (providerKey === "anthropic") {
+      if (!key.startsWith("sk-ant-") || key.length < 20) {
+        return { valid: false, reason: "Invalid Anthropic API key format. Keys must start with 'sk-ant-' and be at least 20 characters long." };
+      }
+    }
+
+    if (providerKey === "gemini") {
+      if (key.length < 15 || /\s/.test(key)) {
+        return { valid: false, reason: "Invalid Google Gemini API key format. Keys must be at least 15 characters long without spaces." };
+      }
+    }
+
+    return { valid: true };
+  }
+
   async #setupApiKey({ providerName, providerKey, promptText, helpUrl = "", helpNote = "" }) {
     this.terminalUI.info(`Configuring credentials for ${providerName}. Input is hidden.`);
     if (helpUrl) {
@@ -112,8 +140,9 @@ export class AuthService {
         stdout: this.terminalUI.stdout
       })).trim();
 
-      if (!apiKey) {
-        this.terminalUI.error("API key cannot be empty.");
+      const validation = this.validateKeyFormat(providerKey, apiKey);
+      if (!validation.valid) {
+        this.terminalUI.error(validation.reason);
         return false;
       }
 
@@ -143,7 +172,11 @@ export class AuthService {
     });
 
     try {
-      const endpoint = (await rl.question(this.terminalUI.chalk.cyan("Ollama Base URL [http://localhost:11434]: "))).trim() || "http://localhost:11434";
+      let rawEndpoint = (await rl.question(this.terminalUI.chalk.cyan("Ollama Base URL [http://localhost:11434]: "))).trim() || "http://localhost:11434";
+      if (!rawEndpoint.startsWith("http://") && !rawEndpoint.startsWith("https://")) {
+        rawEndpoint = `http://${rawEndpoint}`;
+      }
+      const endpoint = rawEndpoint.replace(/\/+$/, "");
 
       await this.configUpdater({
         provider: "ollama",

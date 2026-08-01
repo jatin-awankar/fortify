@@ -43,22 +43,30 @@ export function highlightCodeLine(line, { language = "", chalk } = {}) {
     "node"
   ].includes(trimmedLanguage);
 
-  let output = line;
-
   if (supportsKeywordHighlight) {
-    output = applyRegexColor(output, STRING_PATTERN, chalk.green);
+    const commentIdx = line.indexOf("//");
+    let codePart = line;
+    let commentPart = "";
+    if (commentIdx >= 0) {
+      const beforeComment = line.slice(0, commentIdx);
+      const singleQuotes = (beforeComment.match(/'/g) || []).length;
+      const doubleQuotes = (beforeComment.match(/"/g) || []).length;
+      if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0) {
+        codePart = line.slice(0, commentIdx);
+        commentPart = line.slice(commentIdx);
+      }
+    }
+
+    let output = applyRegexColor(codePart, STRING_PATTERN, chalk.green);
     output = applyRegexColor(output, NUMBER_PATTERN, chalk.magentaBright);
     output = applyRegexColor(output, KEYWORD_PATTERN, chalk.cyanBright);
 
-    const commentIndex = output.indexOf("//");
-    if (commentIndex >= 0) {
-      const codePart = output.slice(0, commentIndex);
-      const commentPart = output.slice(commentIndex);
-      return `${codePart}${chalk.gray(commentPart)}`;
+    if (commentPart) {
+      output += chalk.gray(commentPart);
     }
 
     return output;
   }
 
-  return chalk.white(output);
+  return chalk.white(line);
 }

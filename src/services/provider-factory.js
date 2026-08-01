@@ -35,6 +35,14 @@ export class ProviderFactory {
       return this.ollamaService;
     }
 
+    if (providerName === "openai") {
+      return this.openAIService;
+    }
+
+    if (explicitProvider) {
+      throw new Error(`Unsupported provider '${explicitProvider}'. Supported providers: openai, anthropic, gemini, ollama.`);
+    }
+
     return this.openAIService;
   }
 }

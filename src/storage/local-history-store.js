@@ -24,7 +24,12 @@ function normalizeSessionId(sessionId) {
     return fallback;
   }
 
-  return trimmed.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 80) || fallback;
+  let cleaned = trimmed.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 80) || fallback;
+  const WINDOWS_RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+  if (WINDOWS_RESERVED.test(cleaned)) {
+    cleaned = `${cleaned}_session`;
+  }
+  return cleaned;
 }
 
 function normalizeMessage(message, limits) {
@@ -45,12 +50,18 @@ function normalizeMessage(message, limits) {
 function normalizeSessionPayload(payload, limits) {
   const id = normalizeSessionId(payload?.id);
   const createdAt = typeof payload?.createdAt === "string" ? payload.createdAt : new Date().toISOString();
-  const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+  const rawMessages = Array.isArray(payload?.messages) ? payload.messages : [];
+
+  const systemMessages = rawMessages.filter((m) => m?.role === "system");
+  const nonSystemMessages = rawMessages.filter((m) => m?.role !== "system");
+
+  const slicedNonSystem = nonSystemMessages.slice(-limits.maxMessagesPerSession);
+  const messages = [...systemMessages, ...slicedNonSystem];
 
   return {
     id,
     createdAt,
-    messages: messages.slice(-limits.maxMessagesPerSession).map((message) => normalizeMessage(message, limits)),
+    messages: messages.map((message) => normalizeMessage(message, limits)),
     updatedAt: typeof payload?.updatedAt === "string" ? payload.updatedAt : new Date().toISOString()
   };
 }
@@ -120,15 +131,22 @@ export class LocalHistoryStore {
     for (const fileName of files) {
       const sessionId = fileName.slice(0, -HISTORY_FILE_EXTENSION.length);
       const filePath = path.join(this.getHistoryDirectory(), fileName);
-      const details = await stat(filePath);
-      const session = await this.loadSession(sessionId);
+      try {
+        const details = await stat(filePath);
+        const session = await this.loadSession(sessionId);
 
-      sessions.push({
-        id: sessionId,
-        createdAt: new Date(details.birthtimeMs || details.ctimeMs).toISOString(),
-        updatedAt: new Date(details.mtimeMs).toISOString(),
-        messageCount: Array.isArray(session?.messages) ? session.messages.length : 0
-      });
+        const mtimeMs = Number.isFinite(details.mtimeMs) ? details.mtimeMs : Date.now();
+        const birthMs = Number.isFinite(details.birthtimeMs) && details.birthtimeMs > 0 ? details.birthtimeMs : mtimeMs;
+
+        sessions.push({
+          id: sessionId,
+          createdAt: new Date(birthMs).toISOString(),
+          updatedAt: new Date(mtimeMs).toISOString(),
+          messageCount: Array.isArray(session?.messages) ? session.messages.length : 0
+        });
+      } catch {
+        // Skip corrupted or unreadable history files
+      }
     }
 
     sessions.sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)));

@@ -33,12 +33,24 @@ jobs:
       - name: Build NPM Tarball Artifact
         run: npm pack
 
+      - name: Extract Release Notes from CHANGELOG.md
+        run: |
+          node -e '
+            const fs = require("fs");
+            const version = process.env.GITHUB_REF_NAME.replace(/^v/, "");
+            const content = fs.readFileSync("CHANGELOG.md", "utf8");
+            const regex = new RegExp("## " + version.replace(".", "\\.") + "\\s*\\n([\\s\\S]*?)(?=\\n## |$)");
+            const match = content.match(regex);
+            const notes = match ? match[1].trim() : "Release " + version;
+            fs.writeFileSync("RELEASE_NOTES.md", notes);
+          '
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
-          body_path: CHANGELOG.md
+          body_path: RELEASE_NOTES.md
           files: "*.tgz"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

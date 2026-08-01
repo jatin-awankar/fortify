@@ -6,7 +6,14 @@ export function createAnsiStyle({ env = process.env, forceColor = null } = {}) {
 
   const shouldUseColor = force !== null ? force : (!noColor && Boolean(process.stdout?.isTTY));
 
+  const proxyCache = new Map();
+
   function createChainer(formats = []) {
+    const key = formats.join(".");
+    if (proxyCache.has(key)) {
+      return proxyCache.get(key);
+    }
+
     const fn = (text) => {
       if (text === undefined || text === null) return "";
       const strText = String(text);
@@ -33,7 +40,7 @@ export function createAnsiStyle({ env = process.env, forceColor = null } = {}) {
       }
     };
 
-    return new Proxy(fn, {
+    const proxy = new Proxy(fn, {
       get(target, prop) {
         if (prop === "shouldUseColor") return shouldUseColor;
         if (prop in target) return target[prop];
@@ -43,6 +50,9 @@ export function createAnsiStyle({ env = process.env, forceColor = null } = {}) {
         return target[prop];
       }
     });
+
+    proxyCache.set(key, proxy);
+    return proxy;
   }
 
   return createChainer([]);

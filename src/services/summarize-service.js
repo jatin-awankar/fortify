@@ -178,7 +178,8 @@ export class SummarizeService {
               signal: summaryController.signal
             });
             for await (const chunk of chunkStream) {
-              if (chunk.type === "text_delta") streamOutputText += chunk.delta;
+              const text = typeof chunk === "string" ? chunk : (chunk?.delta || chunk?.text || chunk?.content || "");
+              if (text) streamOutputText += text;
             }
             chunkSummaryResponse = { outputText: streamOutputText };
           }

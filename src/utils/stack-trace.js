@@ -1,7 +1,7 @@
 const NODE_STACK_FRAME_PATTERN =
-  /^\s*at\s+(?:.+?\s+\()?((?:[a-zA-Z]:)?[^():\n]+):(\d+):(\d+)\)?\s*$/m;
+  /^\s*at\s+(?:.+?\s+\()?(?:file:\/\/\/)?((?:[a-zA-Z]:[\\/])?[^():\n]+):(\d+):(\d+)\)?\s*$/m;
 const NODE_ERROR_HEADER_PATTERN =
-  /^(?:[A-Za-z]*Error|TypeError|ReferenceError|SyntaxError|RangeError|URIError|EvalError):\s.+/m;
+  /^(?:Uncaught\s+)?(?:[A-Za-z]*Error|TypeError|ReferenceError|SyntaxError|RangeError|URIError|EvalError|UnhandledPromiseRejection|AggregateError)(?:\s*\[[A-Z0-9_]+\])?:\s*.+/m;
 
 export function detectNodeStackTrace(text) {
   if (typeof text !== "string" || !text.trim()) {

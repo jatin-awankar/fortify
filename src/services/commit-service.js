@@ -21,9 +21,7 @@ function normalizeCommitMessage(rawMessage) {
     return "";
   }
 
-  const withoutFences = rawMessage.replace(/```[\s\S]*?```/g, (block) => {
-    return block.replace(/```/g, "");
-  });
+  const withoutFences = rawMessage.replace(/```[a-zA-Z0-9_-]*\n?([\s\S]*?)```/g, "$1").replace(/```/g, "");
 
   const normalizedLines = withoutFences
     .replace(/\r\n/g, "\n")

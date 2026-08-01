@@ -28,17 +28,21 @@ main().catch((error) => {
   }
 
   const runtimeOptions = getRuntimeOptions();
+  const isVerbose = Boolean(runtimeOptions.verbose || process.argv.includes("--verbose"));
+  const isJson = Boolean(runtimeOptions.json || process.argv.includes("--json"));
 
-  if (runtimeOptions.json) {
+  if (isJson) {
     process.stdout.write(`${JSON.stringify(normalizeErrorForOutput(error, "error", {
-      verbose: runtimeOptions.verbose,
+      verbose: isVerbose,
     }))}\n`);
   } else {
-    const message = runtimeOptions.verbose && error instanceof Error && error.stack
+    const message = isVerbose && error instanceof Error && error.stack
       ? error.stack
-      : error instanceof Error ? error.message : String(error);
+      : error instanceof Error ? error.message : String(error ?? "Unknown error occurred.");
     process.stderr.write(`${message}\n`);
   }
 
-  process.exitCode = process.exitCode || 1;
+  if (typeof process.exitCode !== "number") {
+    process.exitCode = 1;
+  }
 });

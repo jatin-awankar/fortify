@@ -125,16 +125,21 @@ export async function loadConfig() {
 
 export async function loadRuntimeConfig({ env = process.env } = {}) {
   const config = await loadConfig();
-  const envApiKey = typeof env[API_KEY_ENV_NAME] === "string" ? env[API_KEY_ENV_NAME].trim() : "";
+  const envOpenAI = typeof env.OPENAI_API_KEY === "string" ? env.OPENAI_API_KEY.trim() : "";
+  const envGemini = typeof env.GEMINI_API_KEY === "string" ? env.GEMINI_API_KEY.trim() : "";
+  const envAnthropic = typeof env.ANTHROPIC_API_KEY === "string" ? env.ANTHROPIC_API_KEY.trim() : (typeof env.CLAUDE_API_KEY === "string" ? env.CLAUDE_API_KEY.trim() : "");
 
-  if (!envApiKey) {
+  const apiKeysPatch = {};
+  if (envOpenAI) apiKeysPatch.openai = envOpenAI;
+  if (envGemini) apiKeysPatch.gemini = envGemini;
+  if (envAnthropic) apiKeysPatch.anthropic = envAnthropic;
+
+  if (Object.keys(apiKeysPatch).length === 0) {
     return config;
   }
 
   return mergeObjects(config, {
-    apiKeys: {
-      openai: envApiKey,
-    },
+    apiKeys: apiKeysPatch
   });
 }
 

@@ -203,6 +203,21 @@ export class AnthropicService {
           }
         }
       }
+
+      if (buffer.trim()) {
+        const trimmed = buffer.trim();
+        if (trimmed.startsWith("data: ")) {
+          const dataStr = trimmed.slice(6);
+          if (dataStr !== "[DONE]") {
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.type === "content_block_delta" && data.delta?.text) {
+                yield { type: "text_delta", delta: data.delta.text };
+              }
+            } catch {}
+          }
+        }
+      }
     } finally {
       reader.releaseLock?.();
     }

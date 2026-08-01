@@ -27,7 +27,7 @@ export class ProjectContextService {
       const data = await this.fs.readFile(configPath, "utf8");
       return JSON.parse(data);
     } catch (error) {
-      if (error?.code === "ENOENT") {
+      if (error?.code === "ENOENT" || error instanceof SyntaxError) {
         return null;
       }
       throw error;
@@ -45,13 +45,21 @@ export class ProjectContextService {
     const detected = [];
     const signatures = [
       { file: "package.json", stack: "Node.js" },
+      { file: "tsconfig.json", stack: "TypeScript" },
       { file: "requirements.txt", stack: "Python" },
       { file: "Pipfile", stack: "Python" },
       { file: "pyproject.toml", stack: "Python" },
       { file: "Cargo.toml", stack: "Rust" },
       { file: "go.mod", stack: "Go" },
       { file: "pom.xml", stack: "Java" },
-      { file: "build.gradle", stack: "Java" }
+      { file: "build.gradle", stack: "Java" },
+      { file: "composer.json", stack: "PHP" },
+      { file: "Gemfile", stack: "Ruby" },
+      { file: "CMakeLists.txt", stack: "C/C++" },
+      { file: "Makefile", stack: "C/C++" },
+      { file: "pubspec.yaml", stack: "Flutter/Dart" },
+      { file: "deno.json", stack: "Deno" },
+      { file: "bun.lockb", stack: "Bun" }
     ];
 
     for (const sig of signatures) {

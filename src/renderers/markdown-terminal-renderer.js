@@ -219,13 +219,21 @@ export class MarkdownTerminalRenderer {
       return "";
     }
 
-    return line.replace(/(?<!\\)`([^`\n]+)`/g, (_match, inlineCode) => {
+    let result = line.replace(/(?<!\\)`([^`\n]+)`/g, (_match, inlineCode) => {
       if (this.terminalUI?.chalk && this.terminalUI?.capabilities?.shouldUseColor) {
         return this.terminalUI.chalk.bgBlackBright.white(` ${inlineCode} `);
       }
 
       return `\`${inlineCode}\``;
     });
+
+    if (this.terminalUI?.chalk && this.terminalUI?.capabilities?.shouldUseColor) {
+      result = result.replace(/\*\*([^*]+)\*\*/g, (_m, boldText) => this.terminalUI.chalk.bold(boldText));
+      result = result.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, (_m, italicText) => this.terminalUI.chalk.italic(italicText));
+      result = result.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) => `${this.terminalUI.chalk.underline.cyan(text)} (${this.terminalUI.chalk.dim(url)})`);
+    }
+
+    return result;
   }
 
   #write(text) {

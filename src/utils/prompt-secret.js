@@ -25,8 +25,9 @@ export async function promptSecretInput({
     }
 
     function onData(buffer) {
-      const chunk = Buffer.isBuffer(buffer) ? buffer.toString("utf8") : String(buffer);
-      if (chunk.startsWith("\u001b")) {
+      let chunk = Buffer.isBuffer(buffer) ? buffer.toString("utf8") : String(buffer);
+      chunk = chunk.replace(/\u001b\[200~/g, "").replace(/\u001b\[201~/g, "");
+      if (chunk.startsWith("\u001b") && chunk.length <= 10) {
         return;
       }
 

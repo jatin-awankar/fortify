@@ -113,3 +113,14 @@ test("CommandService forwards provider and model to commitService", async () => 
   assert.equal(captured.provider, "gemini");
   assert.equal(captured.model, "gemini-1.5-pro");
 });
+
+test("AuthService validateKeyFormat rejects malformed or short API keys", () => {
+  const auth = new AuthService();
+  assert.equal(auth.validateKeyFormat("openai", "invalid_key").valid, false);
+  assert.equal(auth.validateKeyFormat("anthropic", "sk-proj-invalid").valid, false);
+  assert.equal(auth.validateKeyFormat("gemini", "short").valid, false);
+
+  assert.equal(auth.validateKeyFormat("openai", "sk-proj-1234567890abcdef1234").valid, true);
+  assert.equal(auth.validateKeyFormat("anthropic", "sk-ant-1234567890abcdef5678").valid, true);
+  assert.equal(auth.validateKeyFormat("gemini", "AIzaSyD1234567890abcdef9012").valid, true);
+});

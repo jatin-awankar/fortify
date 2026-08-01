@@ -141,8 +141,8 @@ export class ChatService {
           break;
         }
 
-        const expandedInput = await this.pluginService.expandPromptShortcuts(trimmedInput);
-        const { content: finalContent } = await this.resolveFileAttachments(expandedInput);
+        const { content: attachedInput } = await this.resolveFileAttachments(trimmedInput);
+        const finalContent = await this.pluginService.expandPromptShortcuts(attachedInput);
 
         this.conversationStore.addMessage(session.id, {
           role: "user",

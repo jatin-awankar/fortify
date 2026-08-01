@@ -102,7 +102,7 @@ export class InitService {
         }
       }
 
-      if (content.includes(".fortify/")) {
+      if (/\.fortify\/?(?:\s|$)/.test(content)) {
         this.terminalUI.info(".fortify/ is already in .gitignore.");
         return;
       }

@@ -120,12 +120,11 @@ export class ExplainService {
   }
 
   async #resolveInput(target) {
-    const possiblePath = path.resolve(this.cwd, target);
-
     try {
+      const possiblePath = path.resolve(this.cwd, target);
       const targetStats = await stat(possiblePath);
-      if (!targetStats.isFile()) {
-        throw new Error("Target path must point to a file or be passed as raw text.");
+      if (targetStats.isDirectory()) {
+        throw new Error("Target path is a directory. Provide a stack-trace file or inline text.");
       }
 
       const fileContent = await readFile(possiblePath, "utf8");
@@ -135,27 +134,15 @@ export class ExplainService {
         rawText: fileContent
       };
     } catch (error) {
-      if (error?.code === "ENOENT") {
-        return {
-          sourceType: "text",
-          sourceLabel: "inline",
-          rawText: target
-        };
+      if (error?.message?.includes("is a directory") || error?.code === "EISDIR") {
+        throw error;
       }
 
-      if (error?.code === "EISDIR") {
-        throw new Error("Target path is a directory. Provide a stack-trace file or inline text.");
-      }
-
-      if (target.includes("\n") || target.includes("Error") || target.includes(" at ")) {
-        return {
-          sourceType: "text",
-          sourceLabel: "inline",
-          rawText: target
-        };
-      }
-
-      throw error;
+      return {
+        sourceType: "text",
+        sourceLabel: "inline",
+        rawText: target
+      };
     }
   }
 }
