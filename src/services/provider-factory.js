@@ -1,6 +1,7 @@
 import { loadRuntimeConfig } from "../config/index.js";
 import { OpenAIService } from "./openai/index.js";
 import { AnthropicService } from "./anthropic/anthropic-service.js";
+import { GeminiService } from "./gemini/gemini-service.js";
 import { OllamaService } from "./ollama/ollama-service.js";
 
 export class ProviderFactory {
@@ -8,11 +9,13 @@ export class ProviderFactory {
     configLoader = loadRuntimeConfig,
     openAIService = new OpenAIService(),
     anthropicService = new AnthropicService(),
+    geminiService = new GeminiService(),
     ollamaService = new OllamaService()
   } = {}) {
     this.configLoader = configLoader;
     this.openAIService = openAIService;
     this.anthropicService = anthropicService;
+    this.geminiService = geminiService;
     this.ollamaService = ollamaService;
   }
 
@@ -22,6 +25,10 @@ export class ProviderFactory {
 
     if (providerName === "anthropic" || providerName === "claude") {
       return this.anthropicService;
+    }
+
+    if (providerName === "gemini" || providerName === "google") {
+      return this.geminiService;
     }
 
     if (providerName === "ollama" || providerName === "local") {

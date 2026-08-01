@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1
+
+- Added first-class **Google Gemini** integration (`GeminiService`) supporting `gemini-2.0-flash`, `gemini-1.5-pro`, and `gemini-1.5-flash` with REST SSE streaming.
+- Added interactive multi-provider authentication menu (`fortify auth`) for **OpenAI**, **Anthropic (Claude)**, **Google Gemini**, and **Ollama (Local LLM)**.
+- Added direct provider credential setup shortcut (`fortify auth --provider <name>`).
+- Added per-command provider and model override flags (`-p, --provider <name>` and `--model <name>`) across `chat`, `commit`, `explain`, and `summarize` commands.
+- Added complete secret key masking for `openai`, `anthropic`, and `gemini` in `ConfigService`.
+
 ## 0.5.0
 
 - Added workspace plugin discovery (`.fortify/plugins/`) and custom project rules (`.fortify/rules.md`).

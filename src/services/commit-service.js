@@ -37,10 +37,13 @@ function normalizeCommitMessage(rawMessage) {
   return normalizedLines.join("\n").trim();
 }
 
+import { ProviderFactory } from "./provider-factory.js";
+
 export class CommitService {
   constructor({
     gitService = new GitService(),
     openAIService = new OpenAIService(),
+    providerFactory = new ProviderFactory(),
     projectContextService = new ProjectContextService(),
     configLoader = loadConfig,
     fsPromises = { writeFile, readFile, unlink },
@@ -50,6 +53,7 @@ export class CommitService {
   } = {}) {
     this.gitService = gitService;
     this.openAIService = openAIService;
+    this.providerFactory = providerFactory;
     this.projectContextService = projectContextService;
     this.configLoader = configLoader;
     this.fs = fsPromises;
@@ -58,7 +62,7 @@ export class CommitService {
     this.signalProcess = signalProcess;
   }
 
-  async runCommitFlow({ style = "conventional", scope = "", autoCommit = false, dryRun = false, interactive = false, validate = false } = {}) {
+  async runCommitFlow({ style = "conventional", scope = "", autoCommit = false, dryRun = false, interactive = false, validate = false, provider = "", model = "" } = {}) {
     const isRepository = await this.gitService.isGitRepository();
 
     if (!isRepository) {
@@ -96,9 +100,11 @@ export class CommitService {
 
       this.renderer.showGenerating();
 
-      const stream = this.openAIService.streamResponse({
+      const providerService = await this.providerFactory.getProvider(provider);
+      const stream = providerService.streamResponse({
         input,
         instructions,
+        model: model || undefined,
         signal: generationController.signal,
         temperature: 0.2,
         maxOutputTokens: 220

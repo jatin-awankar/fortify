@@ -72,7 +72,7 @@ export class ChatService {
     return resolvedSessionId;
   }
 
-  async startInteractiveChat({ mode = "default", sessionId = "" } = {}) {
+  async startInteractiveChat({ mode = "default", sessionId = "", provider = "", model = "" } = {}) {
     const resolvedSessionId = await this.resolveSessionId(sessionId);
     const existingSession = await this.#loadSessionFromHistory(resolvedSessionId);
     const session = existingSession
@@ -119,8 +119,8 @@ export class ChatService {
 
     try {
       while (!exitRequested) {
+        promptAbortController = new AbortController();
         const userInput = await this.#readUserInput(readlineInterface, () => {
-          promptAbortController = new AbortController();
           return promptAbortController;
         });
 
@@ -159,9 +159,10 @@ export class ChatService {
         generationAbortController = new AbortController();
 
         try {
-          const providerService = await this.providerFactory.getProvider();
+          const providerService = await this.providerFactory.getProvider(provider);
           const stream = providerService.streamResponse({
             input: responseInput,
+            model: model || undefined,
             signal: generationAbortController.signal,
             onModelFallback: ({ fromModel, toModel }) => {
               this.renderer.showModelFallback({ fromModel, toModel });

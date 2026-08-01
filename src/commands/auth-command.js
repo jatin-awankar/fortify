@@ -3,16 +3,20 @@ import { appMetadata } from "../config/app-metadata.js";
 export function createAuthCommand(commandService) {
   return {
     name: "auth",
-    description: "Configure local authentication credentials.",
+    description: "Configure local AI provider authentication credentials.",
     configure(command) {
       command
-        .summary("Save your OpenAI API key locally")
+        .summary("Configure AI provider credentials locally")
         .description(
-          `Prompts for an OpenAI API key and stores it in your local ${appMetadata.displayName} config.`
+          `Configure API keys or local endpoint credentials for OpenAI, Anthropic, Google Gemini, or Ollama.`
         )
-        .addHelpText("after", `\nExample:\n  ${appMetadata.cliName} auth`)
-        .action(async () => {
-          await commandService.auth();
+        .option("-p, --provider <provider>", "Specific provider to configure (openai, anthropic, gemini, ollama)")
+        .addHelpText(
+          "after",
+          `\nExample:\n  ${appMetadata.cliName} auth\n  ${appMetadata.cliName} auth --provider gemini`
+        )
+        .action(async (options) => {
+          await commandService.auth({ provider: options.provider });
         });
     }
   };

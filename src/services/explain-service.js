@@ -11,6 +11,8 @@ import { detectNodeStackTrace } from "../utils/stack-trace.js";
 import { OpenAIService } from "./openai/index.js";
 import { ProjectContextService } from "./project-context-service.js";
 
+import { ProviderFactory } from "./provider-factory.js";
+
 const MAX_INPUT_CHARS = 40_000;
 
 function truncateInputText(inputText) {
@@ -25,19 +27,21 @@ function truncateInputText(inputText) {
 export class ExplainService {
   constructor({
     openAIService = new OpenAIService(),
+    providerFactory = new ProviderFactory(),
     renderer = new ExplainRenderer(),
     projectContextService = new ProjectContextService(),
     cwd = process.cwd(),
     signalProcess = process
   } = {}) {
     this.openAIService = openAIService;
+    this.providerFactory = providerFactory;
     this.renderer = renderer;
     this.projectContextService = projectContextService;
     this.cwd = cwd;
     this.signalProcess = signalProcess;
   }
 
-  async runExplainFlow({ target, context = "" } = {}) {
+  async runExplainFlow({ target, context = "", provider = "", model = "" } = {}) {
     if (!target) {
       this.renderer.showError(
         `Target is required. Usage: ${appMetadata.cliName} explain <file-or-text>`
@@ -82,9 +86,11 @@ export class ExplainService {
       });
 
       this.renderer.showStreamingStart();
-      const stream = this.openAIService.streamResponse({
+      const providerService = await this.providerFactory.getProvider(provider);
+      const stream = providerService.streamResponse({
         input,
         instructions,
+        model: model || undefined,
         temperature: 0.2,
         maxOutputTokens: 1_100,
         signal: explanationController.signal

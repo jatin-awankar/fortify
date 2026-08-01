@@ -16,6 +16,8 @@ export function createCommitCommand(commandService) {
         .option("-i, --interactive", "Edit commit message in your preferred editor before committing")
         .option("--validate", "Enforce Conventional Commits specification format")
         .option("-y, --yes", "Skip confirmation and commit automatically")
+        .option("-p, --provider <provider>", "Override active AI provider (openai, anthropic, gemini, ollama)")
+        .option("--model <model>", "Override active model name")
         .addHelpText(
           "after",
           `\nExample:\n  ${appMetadata.cliName} commit --style conventional --scope cli`
@@ -27,7 +29,9 @@ export function createCommitCommand(commandService) {
             dryRun: options.dryRun ?? false,
             yes: options.yes ?? false,
             interactive: options.interactive ?? false,
-            validate: options.validate ?? false
+            validate: options.validate ?? false,
+            provider: options.provider,
+            model: options.model
           });
         });
     }

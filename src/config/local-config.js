@@ -12,12 +12,14 @@ const DEFAULT_CONFIG = {
   apiKeys: {
     openai: "",
     anthropic: "",
+    gemini: "",
   },
   endpoints: {
     ollama: "http://localhost:11434",
   },
   modelPreferences: {
     defaultModel: "gpt-5.4",
+    geminiModel: "gemini-2.0-flash",
     fallbackModels: ["gpt-5.3", "gpt-5.4-mini"],
   },
   theme: {
