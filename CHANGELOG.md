@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0
+
+- **100% Zero Third-Party Runtime Dependencies** (`"dependencies": {}` in `package.json`).
+- Replaced `openai` SDK with native 0-dependency Node.js 20+ `fetch` and SSE `TextDecoder` stream parser.
+- Replaced `chalk` with native `node:util` `styleText` and zero-dependency ANSI color utility (`src/renderers/ansi-style.js`).
+- Replaced `ora` with non-blocking braille frame `NativeSpinner` (`src/renderers/native-spinner.js`).
+- Replaced `commander` with native `node:util` `parseArgs` CLI routing (`src/commands/native-cli-parser.js`).
+- Sub-second installation footprint and 100% supply-chain security guarantee.
+
 ## 0.5.1
 
 - Added first-class **Google Gemini** integration (`GeminiService`) supporting `gemini-2.0-flash`, `gemini-1.5-pro`, and `gemini-1.5-flash` with REST SSE streaming.

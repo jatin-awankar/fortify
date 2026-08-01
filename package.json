@@ -1,6 +1,6 @@
 {
   "name": "fortify-ai-cli",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "AI powered developer-focused CLI for error explanation, git commit generation, codebase summarization, and terminal first workflows",
   "type": "module",
   "license": "MIT",
@@ -52,10 +52,5 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "dependencies": {
-    "chalk": "^5.4.1",
-    "commander": "^12.1.0",
-    "openai": "^6.7.0",
-    "ora": "^9.0.0"
-  }
+  "dependencies": {}
 }

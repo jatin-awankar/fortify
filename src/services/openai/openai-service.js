@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 import { appMetadata } from "../../config/app-metadata.js";
 import { loadRuntimeConfig } from "../../config/index.js";
 import { resolveModelChain } from "../../config/model-preferences.js";
@@ -11,23 +10,27 @@ import {
   normalizeOpenAIError,
 } from "./openai-service-errors.js";
 
-const DEFAULT_MODEL = "gpt-5.1";
+const DEFAULT_MODEL = "gpt-5.4";
 
 export class OpenAIService {
   constructor({
     configLoader = loadRuntimeConfig,
-    clientFactory = (options) => new OpenAI(options),
+    fetchFn = globalThis.fetch,
+    clientFactory = null,
     timeoutMs = 60_000,
     maxRetries = 2,
     retryBaseDelayMs = 500,
     retryMaxDelayMs = 5_000,
+    baseUrl = "https://api.openai.com/v1"
   } = {}) {
     this.configLoader = configLoader;
+    this.fetchFn = fetchFn;
     this.clientFactory = clientFactory;
     this.timeoutMs = timeoutMs;
     this.maxRetries = maxRetries;
     this.retryBaseDelayMs = retryBaseDelayMs;
     this.retryMaxDelayMs = retryMaxDelayMs;
+    this.baseUrl = baseUrl;
   }
 
   async generateResponse({
@@ -56,16 +59,25 @@ export class OpenAIService {
 
         const response = await this.#executeWithRetry(
           async () => {
-            const client = await this.#createClient(timeoutMs);
-            return client.responses.create(requestPayload, { signal });
+            if (typeof this.clientFactory === "function") {
+              const apiKey = await this.#loadApiKey();
+              const client = this.clientFactory({
+                apiKey,
+                maxRetries: 0,
+                timeout: timeoutMs ?? this.timeoutMs,
+              });
+              return client.responses.create(requestPayload, { signal });
+            }
+
+            return this.#rawFetchRequest(requestPayload, { timeoutMs, signal });
           },
           { timeoutMs, maxRetries, signal },
         );
 
         return {
-          id: response.id,
-          model: response.model,
-          outputText: response.output_text ?? "",
+          id: response.id || "res-1",
+          model: response.model || selectedModel,
+          outputText: response.output_text ?? response.choices?.[0]?.message?.content ?? "",
           response,
         };
       },
@@ -119,7 +131,7 @@ export class OpenAIService {
           try {
             await modelIterator.return();
           } catch {
-            // Best-effort cleanup between model attempts.
+            // Best-effort cleanup
           }
         }
 
@@ -162,59 +174,126 @@ export class OpenAIService {
       stream: true,
     });
 
-    const stream = await this.#executeWithRetry(
-      async () => {
-        const client = await this.#createClient(timeoutMs);
-        return client.responses.create(requestPayload, { signal });
+    if (typeof this.clientFactory === "function") {
+      const stream = await this.#executeWithRetry(
+        async () => {
+          const apiKey = await this.#loadApiKey();
+          const client = this.clientFactory({
+            apiKey,
+            maxRetries: 0,
+            timeout: timeoutMs ?? this.timeoutMs,
+          });
+          return client.responses.create(requestPayload, { signal });
+        },
+        { timeoutMs, maxRetries, signal },
+      );
+
+      const requestTimeoutMs = timeoutMs ?? this.timeoutMs;
+      for await (const event of this.#iterateStreamWithTimeout(stream, requestTimeoutMs, signal)) {
+        if (event?.type === "error") {
+          throw normalizeOpenAIError(event.error, { fallbackMessage: "OpenAI streaming failed." });
+        }
+        if (event?.type === "response.output_text.delta") {
+          yield { type: "text_delta", delta: event.delta ?? "", event };
+          continue;
+        }
+        if (event?.type === "response.output_text.done") {
+          yield { type: "text_done", text: event.text ?? "", event };
+          continue;
+        }
+        yield { type: "event", event };
+      }
+      return;
+    }
+
+    // Native SSE Streaming over node:fetch
+    const apiKey = await this.#loadApiKey();
+    const response = await this.fetchFn(`${this.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
       },
-      { timeoutMs, maxRetries, signal },
-    );
+      body: JSON.stringify(requestPayload),
+      signal
+    });
 
-    const requestTimeoutMs = timeoutMs ?? this.timeoutMs;
+    if (!response.ok) {
+      const errorText = await response.text();
+      let parsedError;
+      try { parsedError = JSON.parse(errorText); } catch {}
+      const err = new Error(parsedError?.error?.message || `OpenAI API error (${response.status}): ${errorText}`);
+      err.status = response.status;
+      err.error = parsedError?.error;
+      throw normalizeOpenAIError(err);
+    }
 
-    for await (const event of this.#iterateStreamWithTimeout(
-      stream,
-      requestTimeoutMs,
-      signal,
-    )) {
-      if (event?.type === "error") {
-        throw normalizeOpenAIError(event.error, {
-          fallbackMessage: "OpenAI streaming failed.",
-        });
+    if (!response.body) {
+      throw new Error("OpenAI API returned empty response body.");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith("data: ")) {
+            const dataStr = trimmed.slice(6);
+            if (dataStr === "[DONE]") continue;
+
+            try {
+              const data = JSON.parse(dataStr);
+              const textChunk = data.choices?.[0]?.delta?.content;
+              if (textChunk) {
+                yield {
+                  type: "text_delta",
+                  delta: textChunk
+                };
+              }
+            } catch {
+              // ignore invalid JSON chunks
+            }
+          }
+        }
       }
-
-      if (event?.type === "response.output_text.delta") {
-        yield {
-          type: "text_delta",
-          delta: event.delta ?? "",
-          event,
-        };
-        continue;
-      }
-
-      if (event?.type === "response.output_text.done") {
-        yield {
-          type: "text_done",
-          text: event.text ?? "",
-          event,
-        };
-        continue;
-      }
-
-      yield {
-        type: "event",
-        event,
-      };
+    } finally {
+      reader.releaseLock?.();
     }
   }
 
-  async #createClient(timeoutMs) {
+  async #rawFetchRequest(requestPayload, { signal }) {
     const apiKey = await this.#loadApiKey();
-    return this.clientFactory({
-      apiKey,
-      maxRetries: 0,
-      timeout: timeoutMs ?? this.timeoutMs,
+    const response = await this.fetchFn(`${this.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(requestPayload),
+      signal
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let parsedError;
+      try { parsedError = JSON.parse(errorText); } catch {}
+      const err = new Error(parsedError?.error?.message || `OpenAI API error (${response.status}): ${errorText}`);
+      err.status = response.status;
+      err.error = parsedError?.error;
+      throw normalizeOpenAIError(err);
+    }
+
+    return await response.json();
   }
 
   async #loadApiKey() {
@@ -284,9 +363,22 @@ export class OpenAIService {
       );
     }
 
+    const messages = [];
+    if (instructions) {
+      messages.push({ role: "system", content: instructions });
+    }
+
+    if (Array.isArray(input)) {
+      for (const msg of input) {
+        messages.push(msg);
+      }
+    } else if (typeof input === "string") {
+      messages.push({ role: "user", content: input });
+    }
+
     const payload = {
       model: selectedModel.trim(),
-      input,
+      messages,
       stream,
     };
 
@@ -295,6 +387,7 @@ export class OpenAIService {
     }
 
     if (typeof maxOutputTokens === "number") {
+      payload.max_tokens = maxOutputTokens;
       payload.max_output_tokens = maxOutputTokens;
     }
 

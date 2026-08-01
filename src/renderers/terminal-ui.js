@@ -1,5 +1,5 @@
-import { Chalk } from "chalk";
-import ora from "ora";
+import { createAnsiStyle } from "./ansi-style.js";
+import { NativeSpinner } from "./native-spinner.js";
 import { detectTerminalCapabilities } from "../utils/terminal-capabilities.js";
 import { getRuntimeOptions } from "../utils/runtime-options.js";
 
@@ -22,7 +22,7 @@ export class TerminalUI {
     this.stdout = stdout;
     this.stderr = stderr;
     this.capabilities = detectTerminalCapabilities({ stdin, stdout, stderr, env });
-    this.chalk = new Chalk({ level: this.capabilities.shouldUseColor ? 1 : 0 });
+    this.chalk = createAnsiStyle({ env, forceColor: this.capabilities.shouldUseColor });
   }
 
   success(message) {
