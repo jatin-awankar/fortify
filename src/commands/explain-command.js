@@ -12,6 +12,8 @@ export function createExplainCommand(commandService) {
         )
         .argument("<file-or-text>", "Stack trace file path or pasted error text")
         .option("-c, --context <text>", "Additional context to improve explanation")
+        .option("-p, --provider <provider>", "Override active AI provider (openai, anthropic, gemini, ollama)")
+        .option("--model <model>", "Override active model name")
         .addHelpText(
           "after",
           `\nExamples:\n  ${appMetadata.cliName} explain ./logs/error.log\n  ${appMetadata.cliName} explain \"TypeError: x is not a function\\n    at main (index.js:12:3)\"`
@@ -19,7 +21,9 @@ export function createExplainCommand(commandService) {
         .action(async (targetInput, options) => {
           await commandService.explain({
             target: targetInput,
-            context: options.context ?? ""
+            context: options.context ?? "",
+            provider: options.provider,
+            model: options.model
           });
         });
     }

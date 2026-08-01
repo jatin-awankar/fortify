@@ -1,4 +1,4 @@
-﻿import path from "node:path";
+import path from "node:path";
 import { appMetadata } from "../config/app-metadata.js";
 import {
   buildChunkSummaryInput,
@@ -19,6 +19,7 @@ import {
 import { chunkText } from "../utils/text-chunker.js";
 import { estimateTokenCountFromText, trimItemsToTokenBudget } from "../utils/token-safety.js";
 import { OpenAIService } from "./openai/index.js";
+import { ProviderFactory } from "./provider-factory.js";
 
 const SUMMARY_SAFETY_LIMITS = {
   maxFiles: 200,
@@ -33,17 +34,19 @@ const SUMMARY_SAFETY_LIMITS = {
 export class SummarizeService {
   constructor({
     openAIService = new OpenAIService(),
+    providerFactory = new ProviderFactory(),
     renderer = new SummarizeRenderer(),
     cwd = process.cwd(),
     signalProcess = process
   } = {}) {
     this.openAIService = openAIService;
+    this.providerFactory = providerFactory;
     this.renderer = renderer;
     this.cwd = cwd;
     this.signalProcess = signalProcess;
   }
 
-  async runSummaryFlow({ sourcePath, format = "bullet" } = {}) {
+  async runSummaryFlow({ sourcePath, format = "bullet", provider = "", model = "" } = {}) {
     if (!sourcePath) {
       this.renderer.showError(
         `A target path is required. Usage: ${appMetadata.cliName} summarize <path>`
@@ -93,6 +96,8 @@ export class SummarizeService {
     let stopProcessing = false;
 
     try {
+      const providerService = await this.providerFactory.getProvider(provider);
+
       for (const absoluteFilePath of filesToProcess) {
         if (stopProcessing || summaryController.signal.aborted) {
           break;
@@ -142,18 +147,41 @@ export class SummarizeService {
             totalChunks: contentChunks.length
           });
 
-          const chunkSummaryResponse = await this.openAIService.generateResponse({
-            input: buildChunkSummaryInput({
-              relativePath,
-              chunkIndex,
-              totalChunks: contentChunks.length,
-              chunkContent: contentChunks[chunkIndex]
-            }),
-            instructions: buildChunkSummaryInstructions(),
-            temperature: 0.2,
-            maxOutputTokens: 280,
-            signal: summaryController.signal
-          });
+          let chunkSummaryResponse;
+          if (typeof providerService.generateResponse === "function") {
+            chunkSummaryResponse = await providerService.generateResponse({
+              input: buildChunkSummaryInput({
+                relativePath,
+                chunkIndex,
+                totalChunks: contentChunks.length,
+                chunkContent: contentChunks[chunkIndex]
+              }),
+              instructions: buildChunkSummaryInstructions(),
+              model: model || undefined,
+              temperature: 0.2,
+              maxOutputTokens: 280,
+              signal: summaryController.signal
+            });
+          } else {
+            let streamOutputText = "";
+            const chunkStream = providerService.streamResponse({
+              input: buildChunkSummaryInput({
+                relativePath,
+                chunkIndex,
+                totalChunks: contentChunks.length,
+                chunkContent: contentChunks[chunkIndex]
+              }),
+              instructions: buildChunkSummaryInstructions(),
+              model: model || undefined,
+              temperature: 0.2,
+              maxOutputTokens: 280,
+              signal: summaryController.signal
+            });
+            for await (const chunk of chunkStream) {
+              if (chunk.type === "text_delta") streamOutputText += chunk.delta;
+            }
+            chunkSummaryResponse = { outputText: streamOutputText };
+          }
 
           const summaryText = chunkSummaryResponse.outputText.trim();
           if (!summaryText) {
@@ -205,7 +233,7 @@ export class SummarizeService {
       }
 
       this.renderer.showFinalStart();
-      const finalSummaryStream = this.openAIService.streamResponse({
+      const finalSummaryStream = providerService.streamResponse({
         input: buildFinalSummaryInput({
           sourcePath: absolutePath,
           totalFiles: filesToProcess.length,
@@ -213,6 +241,7 @@ export class SummarizeService {
           chunkSummaries: chunkSummariesForFinalInput
         }),
         instructions: buildFinalSummaryInstructions({ format }),
+        model: model || undefined,
         temperature: 0.2,
         maxOutputTokens: 1_200,
         signal: summaryController.signal

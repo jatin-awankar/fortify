@@ -9,7 +9,11 @@ import {
 import { createTerminalUI } from "../renderers/index.js";
 import { getRuntimeOptions } from "../utils/runtime-options.js";
 
-const REDACTED_KEYS = new Set(["apiKeys.openai"]);
+const REDACTED_KEYS = new Set([
+  "apiKeys.openai",
+  "apiKeys.anthropic",
+  "apiKeys.gemini"
+]);
 
 function parseConfigValue(rawValue) {
   const trimmed = String(rawValue ?? "").trim();
@@ -54,6 +58,8 @@ function redactConfig(config) {
     apiKeys: {
       ...config.apiKeys,
       openai: redactConfigValue("apiKeys.openai", config.apiKeys?.openai ?? ""),
+      anthropic: redactConfigValue("apiKeys.anthropic", config.apiKeys?.anthropic ?? ""),
+      gemini: redactConfigValue("apiKeys.gemini", config.apiKeys?.gemini ?? ""),
     },
   };
 }

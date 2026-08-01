@@ -38,6 +38,8 @@ export class CommandService {
     const result = await this.explainService.runExplainFlow({
       target: input?.target,
       context: input?.context ?? "",
+      provider: input?.provider,
+      model: input?.model,
     });
 
     this.#completeResult(result);
@@ -51,6 +53,8 @@ export class CommandService {
       dryRun: Boolean(input?.dryRun),
       interactive: Boolean(input?.interactive),
       validate: Boolean(input?.validate),
+      provider: input?.provider,
+      model: input?.model,
     });
 
     this.#completeResult(result);
@@ -76,6 +80,8 @@ export class CommandService {
     const result = await this.summarizeService.runSummaryFlow({
       sourcePath: input?.source,
       format: input?.format ?? "bullet",
+      provider: input?.provider,
+      model: input?.model,
     });
 
     this.#completeResult(result);
@@ -85,6 +91,8 @@ export class CommandService {
     await this.chatService.startInteractiveChat({
       mode: input?.mode ?? "default",
       sessionId: input?.sessionId ?? "",
+      provider: input?.provider,
+      model: input?.model,
     });
   }
 
@@ -109,8 +117,9 @@ export class CommandService {
   }
 
   async auth(input) {
-    void input;
-    const isAuthenticated = await this.authService.authenticateOpenAIKey();
+    const isAuthenticated = await this.authService.authenticateProviderCredentials({
+      provider: input?.provider
+    });
 
     this.#completeResult(
       isAuthenticated
