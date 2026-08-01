@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1
+
+- Added direct clickable API key links (`helpUrl`) and provider instructions during interactive `fortify auth` setup (Google Gemini: `https://aistudio.google.com/app/apikey`, OpenAI: `https://platform.openai.com/api-keys`, Anthropic: `https://console.anthropic.com/settings/keys`).
+- Normalized HTTP 429 (quota/rate limit) and auth error payloads across **Google Gemini**, **Anthropic Claude**, and **OpenAI** into clean single-line messages (`src/utils/api-error-parser.js`).
+
 ## 0.6.0
 
 - **100% Zero Third-Party Runtime Dependencies** (`"dependencies": {}` in `package.json`).

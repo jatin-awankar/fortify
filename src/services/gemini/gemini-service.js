@@ -1,4 +1,5 @@
 import { loadRuntimeConfig } from "../../config/index.js";
+import { parseApiErrorResponse } from "../../utils/api-error-parser.js";
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
 
@@ -88,7 +89,7 @@ export class GeminiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Google Gemini API error (${response.status}): ${errorText}`);
+      throw new Error(parseApiErrorResponse(response.status, errorText, "Google Gemini"));
     }
 
     if (!response.body) {

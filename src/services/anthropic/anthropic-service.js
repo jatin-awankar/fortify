@@ -1,4 +1,5 @@
 import { loadRuntimeConfig } from "../../config/index.js";
+import { parseApiErrorResponse } from "../../utils/api-error-parser.js";
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022";
 
@@ -81,7 +82,7 @@ export class AnthropicService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Anthropic API error (${response.status}): ${errorText}`);
+      throw new Error(parseApiErrorResponse(response.status, errorText, "Anthropic Claude"));
     }
 
     if (!response.body) {

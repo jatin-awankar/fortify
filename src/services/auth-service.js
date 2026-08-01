@@ -43,7 +43,8 @@ export class AuthService {
       return this.#setupApiKey({
         providerName: "OpenAI",
         providerKey: "openai",
-        promptText: "OpenAI API key: "
+        promptText: "OpenAI API key: ",
+        helpUrl: "https://platform.openai.com/api-keys"
       });
     }
 
@@ -51,7 +52,8 @@ export class AuthService {
       return this.#setupApiKey({
         providerName: "Anthropic Claude",
         providerKey: "anthropic",
-        promptText: "Anthropic API key: "
+        promptText: "Anthropic API key: ",
+        helpUrl: "https://console.anthropic.com/settings/keys"
       });
     }
 
@@ -59,7 +61,9 @@ export class AuthService {
       return this.#setupApiKey({
         providerName: "Google Gemini",
         providerKey: "gemini",
-        promptText: "Google Gemini API key: "
+        promptText: "Google Gemini API key: ",
+        helpUrl: "https://aistudio.google.com/app/apikey",
+        helpNote: "Free tier token quotas available"
       });
     }
 
@@ -95,8 +99,11 @@ export class AuthService {
     }
   }
 
-  async #setupApiKey({ providerName, providerKey, promptText }) {
+  async #setupApiKey({ providerName, providerKey, promptText, helpUrl = "", helpNote = "" }) {
     this.terminalUI.info(`Configuring credentials for ${providerName}. Input is hidden.`);
+    if (helpUrl) {
+      this.terminalUI.stdout.write(`🔗 Get your ${providerName} API key here: ${this.terminalUI.chalk.cyan(helpUrl)}${helpNote ? ` (${helpNote})` : ""}\n\n`);
+    }
 
     try {
       const apiKey = (await this.secretPrompt({

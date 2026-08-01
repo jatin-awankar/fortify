@@ -33,15 +33,11 @@ jobs:
       - name: Build NPM Tarball Artifact
         run: npm pack
 
-      - name: Get Release Tag Version
-        id: tag
-        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG_NAME }}
-          name: ${{ env.TAG_NAME }}
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           body_path: CHANGELOG.md
           files: "*.tgz"
         env:

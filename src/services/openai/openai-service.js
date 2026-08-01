@@ -1,6 +1,7 @@
 import { appMetadata } from "../../config/app-metadata.js";
 import { loadRuntimeConfig } from "../../config/index.js";
 import { resolveModelChain } from "../../config/model-preferences.js";
+import { parseApiErrorResponse } from "../../utils/api-error-parser.js";
 import { withRetry } from "../../utils/retry.js";
 import {
   OpenAIConfigurationError,
@@ -222,7 +223,8 @@ export class OpenAIService {
       const errorText = await response.text();
       let parsedError;
       try { parsedError = JSON.parse(errorText); } catch {}
-      const err = new Error(parsedError?.error?.message || `OpenAI API error (${response.status}): ${errorText}`);
+      const formattedMessage = parseApiErrorResponse(response.status, errorText, "OpenAI");
+      const err = new Error(formattedMessage);
       err.status = response.status;
       err.error = parsedError?.error;
       throw normalizeOpenAIError(err);
