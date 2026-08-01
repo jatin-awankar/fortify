@@ -19,7 +19,7 @@ const DEFAULT_CONFIG = {
   },
   modelPreferences: {
     defaultModel: "gpt-5.4",
-    geminiModel: "gemini-2.0-flash",
+    geminiModel: "gemini-2.5-flash",
     fallbackModels: ["gpt-5.3", "gpt-5.4-mini"],
   },
   theme: {

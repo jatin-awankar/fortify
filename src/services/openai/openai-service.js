@@ -32,6 +32,38 @@ export class OpenAIService {
     this.retryBaseDelayMs = retryBaseDelayMs;
     this.retryMaxDelayMs = retryMaxDelayMs;
     this.baseUrl = baseUrl;
+    this.cachedDiscoveredModels = null;
+  }
+
+  async fetchAvailableModels(apiKey) {
+    if (this.cachedDiscoveredModels && this.cachedDiscoveredModels.length > 0) {
+      return this.cachedDiscoveredModels;
+    }
+
+    try {
+      const response = await this.fetchFn(`${this.baseUrl}/models`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${apiKey}` }
+      });
+
+      if (!response.ok) return [];
+
+      const data = await response.json();
+      const rawModels = data?.data || [];
+      const chatModels = rawModels
+        .map((m) => m.id)
+        .filter((id) => typeof id === "string" && (id.startsWith("gpt-") || id.startsWith("o1") || id.startsWith("o3")))
+        .filter((id) => !id.includes("audio") && !id.includes("realtime") && !id.includes("transcription"));
+
+      if (chatModels.length > 0) {
+        this.cachedDiscoveredModels = chatModels;
+        return chatModels;
+      }
+    } catch {
+      // Ignore discovery network error
+    }
+
+    return [];
   }
 
   async generateResponse({
@@ -313,7 +345,16 @@ export class OpenAIService {
 
   async #resolveModelChain(explicitModel) {
     const config = await this.configLoader();
-    return resolveModelChain(config, explicitModel, DEFAULT_MODEL);
+    const staticChain = resolveModelChain(config, explicitModel, DEFAULT_MODEL);
+    let apiKey = "";
+    try { apiKey = await this.#loadApiKey(); } catch {}
+    if (apiKey && typeof this.clientFactory !== "function") {
+      const discovered = await this.fetchAvailableModels(apiKey);
+      if (discovered.length > 0) {
+        return Array.from(new Set([...staticChain, ...discovered]));
+      }
+    }
+    return staticChain;
   }
 
   async #executeWithModelFallback(operation, { model, onModelFallback } = {}) {

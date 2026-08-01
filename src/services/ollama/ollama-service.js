@@ -10,6 +10,27 @@ export class OllamaService {
   } = {}) {
     this.configLoader = configLoader;
     this.fetchFn = fetchFn;
+    this.cachedInstalledModels = null;
+  }
+
+  async fetchInstalledModels(endpoint) {
+    if (this.cachedInstalledModels && this.cachedInstalledModels.length > 0) {
+      return this.cachedInstalledModels;
+    }
+
+    try {
+      const response = await this.fetchFn(`${endpoint}/api/tags`, { method: "GET" });
+      if (!response.ok) return [];
+      const data = await response.json();
+      const models = (data?.models || []).map((m) => m.name || m.model).filter(Boolean);
+      if (models.length > 0) {
+        this.cachedInstalledModels = models;
+        return models;
+      }
+    } catch {
+      // Ignore network error during discovery
+    }
+    return [];
   }
 
   async *streamResponse({
@@ -20,7 +41,11 @@ export class OllamaService {
   }) {
     const config = await this.configLoader();
     const endpoint = config?.endpoints?.ollama || DEFAULT_OLLAMA_ENDPOINT;
-    const selectedModel = model || config?.modelPreferences?.ollamaModel || DEFAULT_OLLAMA_MODEL;
+
+    const installedModels = await this.fetchInstalledModels(endpoint);
+    const primaryModel = model || config?.modelPreferences?.ollamaModel || (installedModels[0] || DEFAULT_OLLAMA_MODEL);
+
+    const modelChain = Array.from(new Set([primaryModel, ...installedModels, DEFAULT_OLLAMA_MODEL]));
 
     const messages = [];
     if (instructions) {
@@ -38,6 +63,39 @@ export class OllamaService {
       messages.push({ role: "user", content: input });
     }
 
+    let lastError;
+    for (const selectedModel of modelChain) {
+      try {
+        const stream = this.#streamForModel({
+          endpoint,
+          selectedModel,
+          messages,
+          signal
+        });
+
+        for await (const chunk of stream) {
+          yield chunk;
+        }
+
+        return; // Success
+      } catch (err) {
+        lastError = err;
+        // Try next installed model if model not found error
+        if (!err.message?.includes("not found") && !err.message?.includes("404")) {
+          throw err;
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  async *#streamForModel({
+    endpoint,
+    selectedModel,
+    messages,
+    signal
+  }) {
     const bodyPayload = {
       model: selectedModel,
       messages,

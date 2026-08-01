@@ -22,9 +22,14 @@ test("GeminiService throws error when API key is missing", async () => {
 test("GeminiService streams text deltas from Google Gemini SSE API", async () => {
   const sseChunk = "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello from Gemini!\"}]}}]}\n\n";
 
-  const mockFetch = async (url) => {
-    assert.ok(url.includes("models/gemini-2.0-flash:streamGenerateContent"));
-    assert.ok(url.includes("key=test-gemini-key"));
+  const mockFetch = async (url, options) => {
+    assert.equal(options.headers["x-goog-api-key"], "test-gemini-key");
+    if (url.endsWith("/models")) {
+      return {
+        ok: true,
+        json: async () => ({ models: [{ name: "models/gemini-2.5-flash", supportedGenerationMethods: ["generateContent"] }] })
+      };
+    }
     return {
       ok: true,
       body: {

@@ -2,6 +2,11 @@ import { loadRuntimeConfig } from "../../config/index.js";
 import { parseApiErrorResponse } from "../../utils/api-error-parser.js";
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022";
+const STATIC_ANTHROPIC_FALLBACKS = [
+  "claude-3-5-sonnet-20241022",
+  "claude-3-5-haiku-20241022",
+  "claude-3-opus-20240229"
+];
 
 export class AnthropicConfigurationError extends Error {
   constructor(message) {
@@ -19,6 +24,38 @@ export class AnthropicService {
     this.configLoader = configLoader;
     this.fetchFn = fetchFn;
     this.baseUrl = baseUrl;
+    this.cachedDiscoveredModels = null;
+  }
+
+  async fetchAvailableModels(apiKey) {
+    if (this.cachedDiscoveredModels && this.cachedDiscoveredModels.length > 0) {
+      return this.cachedDiscoveredModels;
+    }
+
+    try {
+      const response = await this.fetchFn(`${this.baseUrl}/models`, {
+        method: "GET",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01"
+        }
+      });
+
+      if (!response.ok) return STATIC_ANTHROPIC_FALLBACKS;
+
+      const data = await response.json();
+      const rawModels = data?.data || [];
+      const modelNames = rawModels.map((m) => m.id).filter(Boolean);
+
+      if (modelNames.length > 0) {
+        this.cachedDiscoveredModels = modelNames;
+        return modelNames;
+      }
+    } catch {
+      // Fall back if network error during discovery
+    }
+
+    return STATIC_ANTHROPIC_FALLBACKS;
   }
 
   async *streamResponse({
@@ -37,9 +74,53 @@ export class AnthropicService {
       );
     }
 
-    const selectedModel = model || config?.modelPreferences?.anthropicModel || DEFAULT_ANTHROPIC_MODEL;
+    const primaryModel = model || config?.modelPreferences?.anthropicModel || DEFAULT_ANTHROPIC_MODEL;
+    const discoveredModels = await this.fetchAvailableModels(apiKey);
 
-    // Separate system message if present in input
+    const modelChain = Array.from(new Set([
+      primaryModel,
+      ...discoveredModels,
+      ...STATIC_ANTHROPIC_FALLBACKS
+    ]));
+
+    let lastError;
+    for (const selectedModel of modelChain) {
+      try {
+        const stream = this.#streamForModel({
+          apiKey,
+          selectedModel,
+          input,
+          instructions,
+          maxOutputTokens,
+          signal
+        });
+
+        for await (const chunk of stream) {
+          yield chunk;
+        }
+
+        return; // Success
+      } catch (err) {
+        lastError = err;
+        const isQuotaOrModelErr = err?.message?.includes("429") || err?.message?.includes("rate_limit") || err?.message?.includes("not_found");
+        if (!isQuotaOrModelErr) {
+          throw err;
+        }
+        // Try next model if quota or model error
+      }
+    }
+
+    throw lastError;
+  }
+
+  async *#streamForModel({
+    apiKey,
+    selectedModel,
+    input,
+    instructions,
+    maxOutputTokens,
+    signal
+  }) {
     const messages = [];
     let systemPrompt = instructions || "";
 
@@ -82,7 +163,7 @@ export class AnthropicService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(parseApiErrorResponse(response.status, errorText, "Anthropic Claude"));
+      throw new Error(parseApiErrorResponse(response.status, errorText, `Anthropic Claude (${selectedModel})`));
     }
 
     if (!response.body) {

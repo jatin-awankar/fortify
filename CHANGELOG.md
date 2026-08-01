@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2
+
+- Implemented universal **Dynamic Model Discovery & Auto-Fallback Engine** across ALL 4 providers (**OpenAI**, **Anthropic Claude**, **Google Gemini**, and **Ollama Local**).
+- Added dynamic local model discovery for Ollama (`GET /api/tags`), auto-selecting installed local models on the user's machine (`deepseek-r1`, `llama3`, `mistral`, etc.).
+- Added dynamic remote model discovery for OpenAI (`GET /v1/models`) and Anthropic (`GET /v1/models`).
+
 ## 0.6.1
 
 - Added direct clickable API key links (`helpUrl`) and provider instructions during interactive `fortify auth` setup (Google Gemini: `https://aistudio.google.com/app/apikey`, OpenAI: `https://platform.openai.com/api-keys`, Anthropic: `https://console.anthropic.com/settings/keys`).

@@ -1,7 +1,14 @@
 import { loadRuntimeConfig } from "../../config/index.js";
 import { parseApiErrorResponse } from "../../utils/api-error-parser.js";
 
-const DEFAULT_GEMINI_MODEL = "gemini-2.0-flash";
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const STATIC_FALLBACK_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-1.5-flash",
+  "gemini-1.5-pro",
+  "gemini-3.1-flash-lite"
+];
 
 export class GeminiConfigurationError extends Error {
   constructor(message) {
@@ -19,6 +26,40 @@ export class GeminiService {
     this.configLoader = configLoader;
     this.fetchFn = fetchFn;
     this.baseUrl = baseUrl;
+    this.cachedDiscoveredModels = null;
+  }
+
+  async fetchAvailableModels(apiKey) {
+    if (this.cachedDiscoveredModels && this.cachedDiscoveredModels.length > 0) {
+      return this.cachedDiscoveredModels;
+    }
+
+    try {
+      const response = await this.fetchFn(`${this.baseUrl}/models`, {
+        method: "GET",
+        headers: { "x-goog-api-key": apiKey }
+      });
+
+      if (!response.ok) {
+        return STATIC_FALLBACK_MODELS;
+      }
+
+      const data = await response.json();
+      const rawModels = data?.models || [];
+      const textModels = rawModels
+        .filter((m) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent"))
+        .map((m) => m.name.replace(/^models\//, ""))
+        .filter((name) => !name.includes("embedding") && !name.includes("imagen") && !name.includes("veo") && !name.includes("audio") && !name.includes("tts"));
+
+      if (textModels.length > 0) {
+        this.cachedDiscoveredModels = textModels;
+        return textModels;
+      }
+    } catch {
+      // Fall back to static models if network error during discovery
+    }
+
+    return STATIC_FALLBACK_MODELS;
   }
 
   async *streamResponse({
@@ -38,9 +79,55 @@ export class GeminiService {
       );
     }
 
-    const selectedModel = model || config?.modelPreferences?.geminiModel || DEFAULT_GEMINI_MODEL;
+    const primaryModel = model || config?.modelPreferences?.geminiModel || DEFAULT_GEMINI_MODEL;
+    const discoveredModels = await this.fetchAvailableModels(apiKey);
 
-    // Convert input to Gemini contents format (roles: "user" | "model")
+    const modelChain = Array.from(new Set([
+      primaryModel,
+      ...discoveredModels,
+      ...STATIC_FALLBACK_MODELS
+    ]));
+
+    let lastError;
+    for (const selectedModel of modelChain) {
+      try {
+        const stream = this.#streamForModel({
+          input,
+          selectedModel,
+          instructions,
+          maxOutputTokens,
+          temperature,
+          apiKey,
+          signal
+        });
+
+        for await (const chunk of stream) {
+          yield chunk;
+        }
+
+        return; // Success
+      } catch (err) {
+        lastError = err;
+        const isQuotaErr = err?.message?.includes("429") || err?.message?.includes("quota") || err?.message?.includes("RESOURCE_EXHAUSTED");
+        if (!isQuotaErr) {
+          throw err;
+        }
+        // If quota error (429), try next model in dynamic fallback chain
+      }
+    }
+
+    throw lastError;
+  }
+
+  async *#streamForModel({
+    input,
+    selectedModel,
+    instructions,
+    maxOutputTokens,
+    temperature,
+    apiKey,
+    signal
+  }) {
     const contents = [];
     let systemText = instructions || "";
 
@@ -76,12 +163,13 @@ export class GeminiService {
       };
     }
 
-    const url = `${this.baseUrl}/models/${selectedModel}:streamGenerateContent?alt=sse&key=${encodeURIComponent(apiKey)}`;
+    const url = `${this.baseUrl}/models/${selectedModel}:streamGenerateContent?alt=sse`;
 
     const response = await this.fetchFn(url, {
       method: "POST",
       headers: {
-        "content-type": "application/json"
+        "content-type": "application/json",
+        "x-goog-api-key": apiKey
       },
       body: JSON.stringify(bodyPayload),
       signal
@@ -89,7 +177,7 @@ export class GeminiService {
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(parseApiErrorResponse(response.status, errorText, "Google Gemini"));
+      throw new Error(parseApiErrorResponse(response.status, errorText, `Google Gemini (${selectedModel})`));
     }
 
     if (!response.body) {
