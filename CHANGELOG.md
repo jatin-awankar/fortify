@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- **Claude Code-like Interactive TUI/UX**: Implemented next-generation terminal UI architecture built with 100% native Node.js ESM modules and **zero runtime dependencies**.
+- **Action Cards Renderer (`ActionCardRenderer`)**: Added live, step-by-step tool activity status cards with animated in-place line state transitions (`⠋ Reading...` -> `✓ Read file (32 lines)`), status icons (`📄`, `📝`, `⚡`, `🧠`, `🔍`), and step progress counters (`[1/3]`).
+- **Code & Unified Diff Renderer (`DiffRenderer`)**: Added git-style unified diff box cards with rounded frame borders (`╭─`, `╰─`), colorized green additions (`+`), red deletions (`-`), and auto-calculated line change stats (`+2 -1`).
+- **Interactive REPL Prompt Editor (`PromptEditor`)**: Added native `readline` tab-completion for slash commands (`/commit`, `/explain`, `/summary`, `/clear`, `/help`, `/exit`) and recursive workspace file path suggestions when typing `@filename`.
+- **TUI Session Header & Permission Dialogs (`TUISession`)**: Added responsive session status header box (displaying model, provider, CWD, and session ID), help footer shortcuts bar, and single-keypress interactive permission confirmation dialogs (`? Allow updating file? [Y/n]`).
+
 ## 0.6.4
 
 - Refactored `README.md` to top-tier AI CLI standards with hero banner, multi-PM quickstart, command deep-dive, provider guides, and Mermaid architecture diagram.

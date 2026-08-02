@@ -2,5 +2,5 @@ export const appMetadata = {
   cliName: "fortify",
   displayName: "Fortify",
   description: "AI-powered developer assistant CLI",
-  version: "0.6.4",
+  version: "0.7.0",
 };

@@ -16,3 +16,21 @@ export {
   StreamingTerminalRenderer,
   createStreamingTerminalRenderer
 } from "./streaming-terminal-renderer.js";
+export {
+  ActionCardRenderer,
+  createActionCardRenderer,
+  ACTION_TYPES
+} from "./action-card-renderer.js";
+export {
+  DiffRenderer,
+  createDiffRenderer
+} from "./diff-renderer.js";
+export {
+  PromptEditor,
+  createCompleter,
+  DEFAULT_SLASH_COMMANDS
+} from "./prompt-editor.js";
+export {
+  TUISession,
+  createTUISession
+} from "./tui-session.js";

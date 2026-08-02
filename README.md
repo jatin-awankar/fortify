@@ -16,45 +16,45 @@
 
 ---
 
-### 💻 Interactive Terminal Experience
+### 💻 Next-Level Claude Code-like Terminal UX
 
 ```text
-  ███████╗ ██████╗ ██████╗ ████████╗██████╗███████╗██╗   ██╗
-  ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝╚═██╔═╝██╔════╝╚██╗ ██╔╝
-  █████╗  ██║   ██║██████╔╝   ██║     ██║  █████╗   ╚████╔╝ 
-  ██╔══╝  ██║   ██║██╔══██╗   ██║     ██║  ██╔══╝    ╚██╔╝  
-  ██║     ╚██████╔╝██║  ██║   ██║   ██████╗██║        ██║   
-  ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═════╝╚═╝        ╚═╝   
+┌──────────────────────────────────────────────────────────────────────────┐
+│ Fortify v0.7.0 | Model: gpt-4o (openai) | Session: sess-8f92a             │
+└──────────────────────────────────────────────────────────────────────────┘
+Commands: /help, /clear, /diff, /commit, /exit │ Files: @filename
+----------------------------------------------------------------------------
+You > Refactor @src/services/chat-service.js to optimize token usage
 
-  🛡️ Fortify AI CLI v0.6.4
-  Workspace Signature: Node.js / ES Modules [git: main]
-  Active Provider: OpenAI (gpt-4o)
+[1/3] Discovering workspace structure & context...
+  ✓ Read src/services/chat-service.js (32 lines)
 
-  You > Refactor @src/services/chat-service.js to optimize token usage and apply @security-check
+[2/3] Generating diff preview...
+╭─ src/services/chat-service.js +2 -1 ─╮
+│ @@ -15,4 +15,5 @@                   │
+│ -const TIMEOUT_MS = 1000;             │
+│ +const TIMEOUT_MS = 5000;             │
+│ +const RETRY = true;                  │
+╰───────────────────────────────────────╯
 
-  ✦ Scanning workspace signature & context...
-  ✦ Injecting @src/services/chat-service.js (3.2 KB, 94 lines)
-  ✦ Executing plugin rule: @security-check...
-
-  Fortify > Refactored prompt builder to stream tokens and prune redundant context.
-  
-  [+] Created diff chunk (2 insertions, 8 deletions)
-  [?] Launch interactive editor to apply changes? (Y/n)
+[3/3] Awaiting approval...
+  ? Allow updating src/services/chat-service.js? [Y/n]
 ```
 
 ---
 
 ## ⚡ Key Features
 
-Fortify is built to stand among the **Top 1% developer CLI tools**. Unlike simple LLM wrappers, Fortify brings **deep repository context**, **native `$EDITOR` integration**, **interactive file auto-completion**, **pluggable cloud & local AI engines**, and **team project rules** directly to your terminal.
+Fortify is built to stand among the **Top 1% developer CLI tools**. Unlike simple LLM wrappers, Fortify brings **Claude Code-like interactive TUI action cards**, **git diff preview frames**, **slash-command & @file tab completions**, **deep repository context**, **native `$EDITOR` integration**, **pluggable cloud & local AI engines**, and **zero runtime dependencies** directly to your terminal.
 
+- 🖥️ **Claude Code-like TUI & Live Action Cards**: Real-time tool execution cards (`📄`, `📝`, `⚡`, `🧠`, `🔍`) with animated in-place line state transitions (`⠋` -> `✓`) and step progress counters (`[1/3]`).
+- 🎨 **Git-Style Unified Diff Preview Cards**: Rounded box frames (`╭─`, `╰─`) displaying colorized additions (`+`), deletions (`-`), and line change stats (`+2 -1`).
+- ⌨️ **Interactive REPL & Tab Completion**: Tab autocompletion for slash commands (`/commit`, `/explain`, `/summary`, `/clear`, `/help`, `/exit`) and recursive workspace file paths when typing `@filename`.
+- 🛡️ **Interactive Permission Confirmations**: Single-keypress permission prompts (`? Allow action? [Y/n]`) before performing file edits or executing shell commands.
+- ⚡ **100% Zero Runtime Dependencies**: Pure Node.js ESM architecture with `<10ms` startup times and zero supply-chain risk.
 - 🧠 **Repo-Aware Context Engine**: Automatically detects workspace signatures (`package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`), active Git branch, diff status, and project architecture.
-- 📎 **Smart `@file` Attachments & Autocomplete**: Reference files in prompts using `@src/app.js` with real-time readline tab-completion, automated payload size guards, and syntax checks.
-- ✏️ **Interactive `$EDITOR` Commit Workflow**: Draft high-quality git commit messages and review/edit them live in `$EDITOR`, `$VISUAL`, `code --wait`, `notepad`, or `nano` before committing (`fortify commit -i`), enforced by Conventional Commits validation (`--validate`).
-- 🔌 **Pluggable AI Backends**: Switch seamlessly between **OpenAI (GPT-4o/o1)**, **Anthropic (Claude 3.5 Sonnet)**, and **Local Models via Ollama** (`llama3`, `deepseek-r1`, `qwen2.5`) with zero code changes.
-- 🧩 **Workspace Prompt Shortcuts & Rules**: Define project-level prompt templates (e.g., `@security-check`, `@refactor`, `@test-suite`) in `.fortify/plugins/` and enforce repository coding guidelines via `.fortify/rules.md`.
-- 💾 **Stateful Session Resume**: Persist conversation contexts, resume past interactive sessions (`fortify chat --resume`), or inspect chat history (`fortify history`).
-- 🎨 **Rich Terminal UX**: Beautiful cyan ASCII branding, responsive border containers, dynamic diff highlighting (`+` green, `-` red, `@@` cyan), and animated `ora` loading spinners.
+- ✏️ **Interactive `$EDITOR` Commit Workflow**: Draft high-quality git commit messages and review/edit them live in `$EDITOR`, `$VISUAL`, `code --wait`, `notepad`, or `nano` before committing (`fortify commit -i`).
+- 🔌 **Pluggable AI Backends**: Switch seamlessly between **OpenAI (GPT-4o/o1)**, **Anthropic (Claude 3.5 Sonnet)**, **Google Gemini**, and **Local Models via Ollama** (`llama3`, `deepseek-r1`, `qwen2.5`) with zero code changes.
 
 ---
 

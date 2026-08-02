@@ -2,17 +2,26 @@ import { appMetadata } from "../config/app-metadata.js";
 import { createTerminalUI } from "./terminal-ui.js";
 import { StreamRenderCancelledError } from "./streaming-terminal-renderer.js";
 import { MarkdownTerminalRenderer } from "./markdown-terminal-renderer.js";
+import { createTUISession } from "./tui-session.js";
+import { createActionCardRenderer } from "./action-card-renderer.js";
+import { createDiffRenderer } from "./diff-renderer.js";
 
 export class ChatSessionRenderer {
   constructor({
     terminalUI = createTerminalUI(),
-    markdownRenderer = new MarkdownTerminalRenderer({ terminalUI })
+    markdownRenderer = new MarkdownTerminalRenderer({ terminalUI }),
+    tuiSession = createTUISession({ terminalUI }),
+    actionCardRenderer = createActionCardRenderer({ terminalUI }),
+    diffRenderer = createDiffRenderer({ terminalUI })
   } = {}) {
     this.terminalUI = terminalUI;
     this.markdownRenderer = markdownRenderer;
+    this.tuiSession = tuiSession;
+    this.actionCardRenderer = actionCardRenderer;
+    this.diffRenderer = diffRenderer;
   }
 
-  showSessionStart({ mode, sessionId }) {
+  showSessionStart({ mode, sessionId, model, provider }) {
     const banner = `
   ███████╗██████╗ ██████╗ ████████╗██████╗ ███████╗██╗   ██╗
   ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝╚═██╔═╝██╔════╝╚██╗ ██╔╝
@@ -24,8 +33,8 @@ export class ChatSessionRenderer {
       this.terminalUI.stdout.write(`${this.terminalUI.chalk.cyan(banner)}\n`);
     }
     this.terminalUI.divider(`${appMetadata.displayName} v${appMetadata.version} Chat`);
-    this.terminalUI.info(`Mode: ${mode} | Session: ${sessionId}`);
-    this.terminalUI.info("Type /exit to leave chat, or @filename to attach workspace files.");
+    this.tuiSession.renderHeader({ model: model || mode, provider, sessionId });
+    this.tuiSession.renderHelpFooter();
     this.terminalUI.divider();
   }
 
@@ -41,6 +50,14 @@ export class ChatSessionRenderer {
   showUserMessage(message) {
     const formattedMessage = message.trim();
     this.terminalUI.stdout.write(`${this.terminalUI.chalk.bold.cyan("You:")} ${formattedMessage}\n`);
+  }
+
+  renderActionCard(options) {
+    return this.actionCardRenderer.renderCard(options);
+  }
+
+  renderDiffCard(filepath, diffContent, options) {
+    return this.diffRenderer.renderDiffCard(filepath, diffContent, options);
   }
 
   async renderAssistantStream(stream, { signal } = {}) {
