@@ -26,7 +26,7 @@
   ██║     ╚██████╔╝██║  ██║   ██║   ██████╗██║        ██║   
   ╚═╝      ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═════╝╚═╝        ╚═╝   
 
-  🛡️ Fortify AI CLI v0.6.3
+  🛡️ Fortify AI CLI v0.6.4
   Workspace Signature: Node.js / ES Modules [git: main]
   Active Provider: OpenAI (gpt-4o)
 

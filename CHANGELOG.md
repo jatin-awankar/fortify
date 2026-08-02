@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.4
+
+- Refactored `README.md` to top-tier AI CLI standards with hero banner, multi-PM quickstart, command deep-dive, provider guides, and Mermaid architecture diagram.
+- Fixed ASCII text logo in README to accurately render `FORTIFY`.
+- Added comprehensive `CONTRIBUTING.md` guide covering Code of Conduct, PR workflow, architectural rules (100% zero runtime dependencies), and Conventional Commits guidelines.
+- Added `SECURITY.md` vulnerability disclosure policy for open-source security reports.
+- Updated version references across application metadata, CLI headers, showcase website, and documentation to `0.6.4`.
+
 ## 0.6.3
 
 - Comprehensive resolution of 40 codebase bugs across native CLI parsing, history storage, SSE stream flushing, secret input pasting, git empty repo handling, commit message formatting, project file filtering, API key format validation, and multi-language stack detection.
