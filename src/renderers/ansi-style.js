@@ -57,3 +57,35 @@ export function createAnsiStyle({ env = process.env, forceColor = null } = {}) {
 
   return createChainer([]);
 }
+
+/**
+ * Strip ANSI escape sequences from a string to get visible text length.
+ * Matches: CSI sequences, OSC sequences, and simple ESC sequences.
+ */
+export function stripAnsi(text) {
+  if (typeof text !== "string") return "";
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?\x07|\x1b[^[\]]/g, "");
+}
+
+/**
+ * Calculate the visible width of a string (excluding ANSI escape codes).
+ */
+export function visibleWidth(text) {
+  return stripAnsi(text).length;
+}
+
+/** ANSI escape sequences for cursor and screen control. */
+export const ANSI = {
+  cursorHide: "\x1b[?25l",
+  cursorShow: "\x1b[?25h",
+  cursorUp: (n = 1) => `\x1b[${n}A`,
+  cursorDown: (n = 1) => `\x1b[${n}B`,
+  cursorTo: (col) => `\x1b[${col}G`,
+  cursorSave: "\x1b[s",
+  cursorRestore: "\x1b[u",
+  eraseLine: "\x1b[2K",
+  eraseDown: "\x1b[J",
+  scrollUp: (n = 1) => `\x1b[${n}S`,
+  moveTo: (row, col) => `\x1b[${row};${col}H`,
+};

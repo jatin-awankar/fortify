@@ -34,3 +34,44 @@ export {
   TUISession,
   createTUISession
 } from "./tui-session.js";
+export {
+  renderBox,
+  renderDivider,
+  renderMidBorder
+} from "./ansi-box.js";
+export {
+  ThinkingIndicator,
+  createThinkingIndicator
+} from "./thinking-indicator.js";
+export {
+  StatusBar,
+  createStatusBar
+} from "./status-bar.js";
+export {
+  createAnsiStyle,
+  stripAnsi,
+  visibleWidth,
+  ANSI
+} from "./ansi-style.js";
+export {
+  ToolUseCard,
+  createToolUseCard,
+  TOOL_TYPES,
+  CARD_STATUS
+} from "./tool-use-card.js";
+export {
+  PermissionPrompt,
+  createPermissionPrompt,
+  PERMISSION_RESPONSE
+} from "./permission-prompt.js";
+export {
+  MessageRenderer,
+  createMessageRenderer
+} from "./message-renderer.js";
+export {
+  SlashCommandHandler,
+  createSlashCommandHandler
+} from "./slash-command-handler.js";
+export {
+  InputHistory
+} from "./prompt-editor.js";

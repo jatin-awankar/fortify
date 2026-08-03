@@ -7,3 +7,6 @@ export { HistoryService } from "./history-service.js";
 export { SummarizeService } from "./summarize-service.js";
 export { GitService, GitServiceError, GitBinaryNotFoundError } from "./git-service.js";
 export * from "./openai/index.js";
+export { ToolRegistry, createToolRegistry, PERMISSION_LEVEL } from "./tool-registry.js";
+export { ToolExecutor, createToolExecutor } from "./tool-executor.js";
+export { AgenticLoop, createAgenticLoop } from "./agentic-loop.js";

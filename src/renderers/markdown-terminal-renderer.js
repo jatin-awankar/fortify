@@ -189,6 +189,43 @@ export class MarkdownTerminalRenderer {
       return;
     }
 
+    // ── Horizontal rule (---, ***, ___) ──
+    if (/^\s*([-*_])\s*\1\s*\1[\s\1]*$/.test(trimmed)) {
+      const hrChar = "─";
+      const hrWidth = 40;
+      const hrLine = this.terminalUI?.chalk?.dim(hrChar.repeat(hrWidth)) ?? hrChar.repeat(hrWidth);
+      this.#write(`${hrLine}${withNewline ? "\n" : ""}`);
+      return;
+    }
+
+    // ── Blockquote (> text) ──
+    const blockquoteMatch = normalizedLine.match(/^\s*>\s?(.*)$/);
+    if (blockquoteMatch) {
+      const quoteContent = this.#formatInlineMarkdown(blockquoteMatch[1] || "");
+      const border = this.terminalUI?.chalk?.dim("│") ?? "│";
+      const formatted = quoteContent
+        ? `  ${border} ${this.terminalUI?.chalk?.italic(quoteContent) ?? quoteContent}`
+        : `  ${border}`;
+      this.#write(`${formatted}${withNewline ? "\n" : ""}`);
+      return;
+    }
+
+    // ── Task list (- [x] or - [ ]) ──
+    const taskListMatch = normalizedLine.match(/^(\s*)([-*+])\s+\[([ xX])\]\s+(.+)$/);
+    if (taskListMatch) {
+      const indent = (taskListMatch[1] ?? "").replace(/\t/g, "  ");
+      const isChecked = taskListMatch[3].toLowerCase() === "x";
+      const checkbox = isChecked
+        ? (this.terminalUI?.chalk?.green("✓") ?? "✓")
+        : (this.terminalUI?.chalk?.dim("○") ?? "○");
+      const content = this.#formatInlineMarkdown(taskListMatch[4]);
+      const styledContent = isChecked
+        ? (this.terminalUI?.chalk?.dim(content) ?? content)
+        : content;
+      this.#write(`${indent}${checkbox} ${styledContent}${withNewline ? "\n" : ""}`);
+      return;
+    }
+
     const headingMatch = normalizedLine.match(/^\s*(#{1,6})\s+(.+)$/);
     if (headingMatch) {
       const level = headingMatch[1].length;
@@ -197,6 +234,24 @@ export class MarkdownTerminalRenderer {
       const colorFn = level <= 2 ? this.terminalUI?.chalk?.blueBright : this.terminalUI?.chalk?.cyan;
       const formatted = colorFn ? colorFn(`${headingPrefix} ${headingText}`) : `${headingPrefix} ${headingText}`;
       this.#write(`${this.terminalUI?.chalk?.bold(formatted) ?? formatted}${withNewline ? "\n" : ""}`);
+      return;
+    }
+
+    // ── Table separator line (|---|---|) ──
+    if (/^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(trimmed)) {
+      // Table separator — render as dim line
+      const dimLine = this.terminalUI?.chalk?.dim(trimmed) ?? trimmed;
+      this.#write(`${dimLine}${withNewline ? "\n" : ""}`);
+      return;
+    }
+
+    // ── Table row (| cell | cell |) ──
+    const tableMatch = trimmed.match(/^\|(.+)\|$/);
+    if (tableMatch) {
+      const cells = tableMatch[1].split("|").map((c) => c.trim());
+      const formatted = cells.map((cell) => this.#formatInlineMarkdown(cell));
+      const row = `│ ${formatted.join(" │ ")} │`;
+      this.#write(`${row}${withNewline ? "\n" : ""}`);
       return;
     }
 

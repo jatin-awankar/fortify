@@ -10,6 +10,10 @@ import { OpenAIService } from "./openai/index.js";
 import { ProviderFactory } from "./provider-factory.js";
 import { ProjectContextService } from "./project-context-service.js";
 import { PluginService } from "./plugin-service.js";
+import { SlashCommandHandler } from "../renderers/slash-command-handler.js";
+import { ToolRegistry } from "./tool-registry.js";
+import { ToolExecutor } from "./tool-executor.js";
+import { AgenticLoop } from "./agentic-loop.js";
 import { loadConfig } from "../config/index.js";
 import { stat, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
@@ -35,7 +39,11 @@ export class ChatService {
     fsPromises = { stat, readFile, readdir },
     input = process.stdin,
     output = process.stdout,
-    signalProcess = process
+    signalProcess = process,
+    slashCommandHandler,
+    toolRegistry,
+    toolExecutor,
+    agenticLoop,
   } = {}) {
     this.openAIService = openAIService;
     this.providerFactory = providerFactory;
@@ -50,6 +58,18 @@ export class ChatService {
     this.output = output;
     this.signalProcess = signalProcess;
     this.historyPersistenceDisabled = false;
+    this.slashCommandHandler = slashCommandHandler || new SlashCommandHandler();
+
+    // Agentic tool execution scaffold
+    this.toolRegistry = toolRegistry || new ToolRegistry();
+    this.toolExecutor = toolExecutor || new ToolExecutor({
+      toolRegistry: this.toolRegistry,
+      stdout: output,
+    });
+    this.agenticLoop = agenticLoop || new AgenticLoop({
+      toolRegistry: this.toolRegistry,
+      toolExecutor: this.toolExecutor,
+    });
   }
 
   async resolveSessionId(sessionId) {
@@ -78,6 +98,9 @@ export class ChatService {
     const session = existingSession
       ? this.conversationStore.hydrateSession(existingSession)
       : this.conversationStore.getOrCreateSession(resolvedSessionId);
+
+    let currentModel = model || "default";
+    let currentProvider = provider || "";
 
     const contextSummary = await this.projectContextService.getProjectContextSummary();
     const contextPrompt = this.projectContextService.formatSystemPromptContext(contextSummary);
@@ -115,7 +138,13 @@ export class ChatService {
       }
     });
 
-    this.renderer.showSessionStart({ mode, sessionId: session.id });
+    this.renderer.showSessionStart({
+      mode,
+      sessionId: session.id,
+      model: currentModel,
+      provider: currentProvider,
+      cwd: this.projectContextService.cwd,
+    });
 
     try {
       while (!exitRequested) {
@@ -136,6 +165,26 @@ export class ChatService {
           continue;
         }
 
+        // Handle slash commands via SlashCommandHandler
+        if (this.slashCommandHandler.isSlashCommand(trimmedInput)) {
+          const handled = await this.slashCommandHandler.execute(trimmedInput, {
+            renderer: this.renderer,
+            conversationStore: this.conversationStore,
+            session,
+            configLoader: this.configLoader,
+            currentModel,
+            currentProvider,
+            toolRegistry: this.toolRegistry,
+            requestExit: () => { exitRequested = true; },
+            onModelChange: (newModel) => { currentModel = newModel; },
+          });
+          if (handled) {
+            if (exitRequested) break;
+            continue;
+          }
+        }
+
+        // Legacy exit check (for "exit", "quit" without slash)
         if (this.#isExitCommand(trimmedInput)) {
           exitRequested = true;
           break;
@@ -159,10 +208,10 @@ export class ChatService {
         generationAbortController = new AbortController();
 
         try {
-          const providerService = await this.providerFactory.getProvider(provider);
+          const providerService = await this.providerFactory.getProvider(currentProvider);
           const stream = providerService.streamResponse({
             input: responseInput,
-            model: model || undefined,
+            model: currentModel !== "default" ? currentModel : undefined,
             signal: generationAbortController.signal,
             onModelFallback: ({ fromModel, toModel }) => {
               this.renderer.showModelFallback({ fromModel, toModel });
@@ -205,6 +254,63 @@ export class ChatService {
       await this.#persistSession(session.id);
       this.renderer.showSessionEnd();
     }
+  }
+
+  /**
+   * Run a single agentic turn — LLM ↔ tool execution loop.
+   *
+   * @param {object} options
+   * @param {string} options.sessionId - Session ID
+   * @param {string} options.userMessage - The user's message
+   * @param {string} options.contextPrompt - System prompt with project context
+   * @param {string} [options.model] - Model to use
+   * @param {string} [options.provider] - Provider to use
+   * @param {AbortSignal} [options.signal] - Abort signal
+   * @returns {Promise<{ text: string, toolResults: object[], iterations: number }>}
+   */
+  async runAgenticTurn({ sessionId, userMessage, contextPrompt, model, provider, signal } = {}) {
+    const responseInput = this.conversationStore.toResponseInput(sessionId);
+    responseInput.unshift({ role: "system", content: contextPrompt });
+
+    const providerService = await this.providerFactory.getProvider(provider || "");
+    const toolSchemas = this.getToolSchemas();
+
+    const result = await this.agenticLoop.run({
+      messages: responseInput,
+      sendToLLM: async (messages, tools) => {
+        const response = await providerService.createResponse({
+          input: messages,
+          model: model && model !== "default" ? model : undefined,
+          tools: tools && tools.length > 0 ? tools : undefined,
+          signal,
+        });
+        return AgenticLoop.parseResponse(response);
+      },
+      context: {
+        sessionId,
+        cwd: this.projectContextService.cwd,
+      },
+      signal,
+    });
+
+    // Persist the final assistant response
+    if (result.text) {
+      this.conversationStore.addMessage(sessionId, {
+        role: "assistant",
+        content: result.text,
+      });
+      await this.#persistSession(sessionId);
+    }
+
+    return result;
+  }
+
+  /**
+   * Get tool schemas for LLM function calling.
+   * @returns {object[]}
+   */
+  getToolSchemas() {
+    return this.toolRegistry.toFunctionCallingSchema();
   }
 
   async resolveFileAttachments(userInput) {
