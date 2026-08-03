@@ -1,6 +1,19 @@
 # Changelog
 
+## 0.8.0
+
+- **Agentic Tool Execution Scaffold**: Built the full multi-turn LLM ↔ tool-use loop (`AgenticLoop`) with `ToolRegistry` (6 built-in tools, OpenAI function-calling schema generation), `ToolExecutor` (permission checks, animated card rendering, stats tracking), and MAX_ITERATIONS safety with abort signal support.
+- **Slash Command System**: Added `SlashCommandHandler` with 7 built-in commands (`/help`, `/clear`, `/model`, `/exit`, `/history`, `/status`, `/tools`), alias support (`/?`, `/quit`, `/bye`), and custom command registration. Wired into REPL with runtime model switching.
+- **Interactive Input History**: Added `InputHistory` class with up/down navigation, draft preservation, deduplication, configurable max size, and persistence-ready `load()`/`clear()` API.
+- **Permission Prompt System**: Interactive single-keypress permission dialogs (`[Y] Allow [n] Deny [a] Allow all [?] Explain`) with session-level allow-all tracking and auto-approve mode.
+- **Tool Use Card Rendering**: Animated lifecycle cards (`⠋ Reading...` → `✓ Read file`), step badges (`[1/3]`), collapsible content, and `renderCommandCard()` for shell commands.
+- **Enhanced Markdown Rendering**: Added pipe-table rendering, task lists (`✓`/`○`), blockquotes (`│`), horizontal rules (`───`), and improved code block handling.
+- **Enhanced Diff Rendering**: File extension icons (`📜📘🐍🎨`), auto-collapsible long diffs, and `renderDiffSummary()` for multi-file changesets.
+- **Core TUI Primitives**: `renderBox()` with rounded/single/heavy borders, `ThinkingIndicator` with elapsed timer and extended 🧠 mode, `StatusBar` with token counters and cost tracking.
+- **Integration & Testing**: 272 total tests (0 failures), 15 new modules, 5 enhanced modules, 0 runtime dependencies added. End-to-end integration tests covering the full agentic pipeline.
+
 ## 0.7.0
+
 
 - **Claude Code-like Interactive TUI/UX**: Implemented next-generation terminal UI architecture built with 100% native Node.js ESM modules and **zero runtime dependencies**.
 - **Action Cards Renderer (`ActionCardRenderer`)**: Added live, step-by-step tool activity status cards with animated in-place line state transitions (`⠋ Reading...` -> `✓ Read file (32 lines)`), status icons (`📄`, `📝`, `⚡`, `🧠`, `🔍`), and step progress counters (`[1/3]`).
