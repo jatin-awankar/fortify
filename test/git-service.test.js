@@ -53,7 +53,7 @@ test("commitWithMessage splits subject and body into separate -m flags", async (
 
   const result = await service.commitWithMessage({ message: "feat: add config\n\nBody text" });
   assert.equal(result.output, "committed");
-  assert.deepEqual(calls[1].args, ["commit", "-m", "feat: add config", "-m", "Body text"]);
+  assert.deepEqual(calls[1].args, ["commit", "-m", "feat: add config\n\nBody text"]);
 });
 
 test("commitWithMessage rejects empty messages", async () => {

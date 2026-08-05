@@ -5,7 +5,6 @@ import path from "node:path";
 const CONFIG_DIRECTORY_NAME = ".fortify";
 const LEGACY_CONFIG_DIRECTORY_NAME = ".aidevchef";
 const CONFIG_FILE_NAME = "config.json";
-const API_KEY_ENV_NAME = "OPENAI_API_KEY";
 
 const DEFAULT_CONFIG = {
   provider: "openai",
@@ -118,6 +117,10 @@ export async function loadConfig() {
     if (error?.code === "ENOENT") {
       return getDefaultConfig();
     }
+    
+    if (error instanceof SyntaxError) {
+      throw new InvalidConfigError(`Failed to parse config file at ${configPath}: ${error.message}`, { issues: [error.message] });
+    }
 
     throw error;
   }
@@ -222,6 +225,22 @@ export function validateConfig(config) {
 
   if (typeof config?.apiKeys?.openai !== "string") {
     issues.push("apiKeys.openai must be a string.");
+  }
+
+  if (config?.apiKeys?.anthropic !== undefined && typeof config.apiKeys.anthropic !== "string") {
+    issues.push("apiKeys.anthropic must be a string.");
+  }
+
+  if (config?.apiKeys?.gemini !== undefined && typeof config.apiKeys.gemini !== "string") {
+    issues.push("apiKeys.gemini must be a string.");
+  }
+
+  if (config?.endpoints !== undefined) {
+    if (!isPlainObject(config.endpoints)) {
+      issues.push("endpoints must be an object.");
+    } else if (config.endpoints.ollama !== undefined && typeof config.endpoints.ollama !== "string") {
+      issues.push("endpoints.ollama must be a string.");
+    }
   }
 
   if (!isPlainObject(config?.modelPreferences)) {

@@ -2,12 +2,13 @@ const MAX_CONTEXT_CHARS = 14_000;
 const MAX_STACK_FRAMES = 16;
 
 function truncateText(text, maxChars) {
-  if (text.length <= maxChars) {
-    return text;
+  const safeText = text || "";
+  if (safeText.length <= maxChars) {
+    return safeText;
   }
 
-  const omitted = text.length - maxChars;
-  return `${text.slice(0, maxChars)}\n\n[Truncated ${omitted} characters for brevity]`;
+  const omitted = safeText.length - maxChars;
+  return `${safeText.slice(0, maxChars)}\n\n[Truncated ${omitted} characters for brevity]`;
 }
 
 function serializeStackTraceSummary(stackTrace) {
@@ -15,18 +16,19 @@ function serializeStackTraceSummary(stackTrace) {
     return "No clear Node.js stack trace pattern detected.";
   }
 
-  const frameLines = stackTrace.frames
+  const safeFrames = stackTrace.frames || [];
+  const frameLines = safeFrames
     .slice(0, MAX_STACK_FRAMES)
     .map((frame, index) => `${index + 1}. ${frame.raw}`);
 
   return [
     `Detected header: ${stackTrace.header || "unknown"}`,
-    `Detected frames: ${stackTrace.frames.length}`,
+    `Detected frames: ${stackTrace.frames?.length || 0}`,
     ...frameLines
   ].join("\n");
 }
 
-export function buildExplainInstructions({ hasStackTrace }) {
+export function buildExplainInstructions({ hasStackTrace } = {}) {
   const stackAwareHint = hasStackTrace
     ? "Prioritize stack-frame-driven diagnosis."
     : "Infer likely failure points from the provided error text.";
@@ -49,7 +51,7 @@ export function buildExplainInput({
   rawErrorText,
   additionalContext,
   stackTrace
-}) {
+} = {}) {
   const conciseErrorContext = truncateText(rawErrorText, MAX_CONTEXT_CHARS);
 
   return [

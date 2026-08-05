@@ -72,10 +72,27 @@ export class ToolExecutor {
    * @returns {Promise<ToolResult>}
    */
   async execute(toolCall, context = {}) {
-    const { name, arguments: params = {}, id } = toolCall;
+    const { name, arguments: params = {}, id, _parseError } = toolCall;
     const startTime = Date.now();
 
     this.stats.totalCalls++;
+
+    if (_parseError) {
+      this.stats.errorCount++;
+      const rawText = (params && params.raw) ? params.raw : String(params);
+      this.toolUseCard.renderCard({
+        type: name || "custom",
+        title: `Invalid JSON for tool: ${name}`,
+        status: CARD_STATUS.ERROR,
+      });
+      return {
+        success: false,
+        output: "",
+        error: `Tool arguments are not valid JSON: ${rawText}`,
+        toolName: name,
+        durationMs: Date.now() - startTime,
+      };
+    }
 
     // 1. Validate tool exists
     const toolDef = this.registry.get(name);
@@ -100,12 +117,28 @@ export class ToolExecutor {
 
     // 3. Check permission if required
     if (toolDef.requiresPermission) {
-      const permResult = await this.permissionPrompt.requestPermission({
+      let permResult = await this.permissionPrompt.requestPermission({
         toolType: name,
         description: `Fortify wants to ${toolDef.description.toLowerCase()}`,
         detail: this.#buildPermissionDetail(name, params),
         defaultAllow: toolDef.permissionLevel === PERMISSION_LEVEL.READ,
       });
+
+      while (permResult === PERMISSION_RESPONSE.EXPLAIN) {
+        this.toolUseCard.renderCard({
+          type: name,
+          title: `${toolDef.description}: ${displayTitle}`,
+          metadata: `Permission: ${toolDef.permissionLevel}`,
+          status: CARD_STATUS.PENDING,
+        });
+        
+        permResult = await this.permissionPrompt.requestPermission({
+          toolType: name,
+          description: `Fortify wants to ${toolDef.description.toLowerCase()}`,
+          detail: this.#buildPermissionDetail(name, params),
+          defaultAllow: toolDef.permissionLevel === PERMISSION_LEVEL.READ,
+        });
+      }
 
       if (permResult === PERMISSION_RESPONSE.DENY) {
         this.stats.deniedCount++;
@@ -121,17 +154,6 @@ export class ToolExecutor {
           toolName: name,
           durationMs: Date.now() - startTime,
         };
-      }
-
-      if (permResult === PERMISSION_RESPONSE.EXPLAIN) {
-        // Show explanation then re-prompt (simplified: just show info)
-        this.toolUseCard.renderCard({
-          type: name,
-          title: `${toolDef.description}: ${displayTitle}`,
-          metadata: `Permission: ${toolDef.permissionLevel}`,
-          status: CARD_STATUS.PENDING,
-        });
-        // In a full implementation, we'd re-prompt here
       }
     }
 
@@ -268,10 +290,14 @@ export class ToolExecutor {
 
   #buildPermissionDetail(toolName, params) {
     switch (toolName) {
-      case "write_file":
-        return `File: ${params.path || "unknown"} (${params.content?.split("\n").length || 0} lines)`;
-      case "edit_file":
-        return `File: ${params.path || "unknown"}\nSearch: "${(params.search || "").slice(0, 50)}..."`;
+      case "write_file": {
+        const contentStr = typeof params.content === "string" ? params.content : String(params.content || "");
+        return `File: ${params.path || "unknown"} (${contentStr.split("\n").length} lines)`;
+      }
+      case "edit_file": {
+        const searchStr = typeof params.search === "string" ? params.search : String(params.search || "");
+        return `File: ${params.path || "unknown"}\nSearch: "${searchStr.slice(0, 50)}..."`;
+      }
       case "execute_command":
         return `Command: ${params.command || "unknown"}`;
       default:

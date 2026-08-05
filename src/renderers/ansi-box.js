@@ -61,10 +61,10 @@ export function renderBox(options = {}) {
     : 0;
 
   const termCols = opts.terminalWidth || opts.maxWidth;
-  const innerWidth = Math.min(
+  const innerWidth = Math.max(0, Math.min(
     Math.max(opts.minWidth, maxContentWidth + pad * 2, titleWidth + 4, subtitleWidth + 4),
     termCols - opts.margin * 2 - 2  // 2 for border chars
-  );
+  ));
 
   // Styling helpers
   const bc = (char) => {
@@ -80,16 +80,14 @@ export function renderBox(options = {}) {
   // Build top border with title
   let topBorder;
   if (opts.title) {
-    const titleStr = ` ${opts.title} `;
-    const titleVisLen = visibleWidth(titleStr) + 2; // +2 for padding spaces in border
-    const remaining = Math.max(0, innerWidth - titleVisLen);
-
     if (opts.titleAlignment === "center") {
+      const remaining = Math.max(0, innerWidth - (titleWidth + 2));
       const left = Math.floor(remaining / 2);
       const right = remaining - left;
       topBorder = `${marginStr}${bc(border.tl)}${bc(border.h.repeat(left))} ${titleColor(opts.title)} ${bc(border.h.repeat(right))}${bc(border.tr)}`;
     } else {
-      topBorder = `${marginStr}${bc(border.tl)}${bc(border.h)} ${titleColor(opts.title)} ${bc(border.h.repeat(Math.max(0, innerWidth - titleVisLen + 1)))}${bc(border.tr)}`;
+      const right = Math.max(0, innerWidth - (titleWidth + 3));
+      topBorder = `${marginStr}${bc(border.tl)}${bc(border.h)} ${titleColor(opts.title)} ${bc(border.h.repeat(right))}${bc(border.tr)}`;
     }
   } else {
     topBorder = `${marginStr}${bc(border.tl)}${bc(border.h.repeat(innerWidth))}${bc(border.tr)}`;

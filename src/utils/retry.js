@@ -6,7 +6,8 @@ function sleep(ms) {
 
 function getJitteredDelay(baseDelayMs, maxDelayMs, attempt) {
   const exponentialDelay = Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
-  const jitter = Math.floor(Math.random() * Math.max(1, Math.floor(exponentialDelay * 0.25)));
+  const maxJitter = Math.floor(exponentialDelay * 0.25);
+  const jitter = maxJitter > 0 ? Math.floor(Math.random() * maxJitter) : 1;
   return exponentialDelay + jitter;
 }
 
@@ -16,7 +17,7 @@ export async function withRetry(
     maxRetries = 2,
     baseDelayMs = 300,
     maxDelayMs = 4_000,
-    shouldRetry = () => false,
+    shouldRetry = () => true,
     onRetry = () => {}
   } = {}
 ) {

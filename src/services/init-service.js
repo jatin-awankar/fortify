@@ -32,8 +32,8 @@ export class InitService {
       const defaultName = path.basename(this.projectContextService.cwd);
       const defaultStackStr = detectedStack.join(", ");
 
-      let finalName = name || defaultName;
-      let finalStackStr = stack || defaultStackStr;
+      let finalName = name || (configExists?.name ?? defaultName);
+      let finalStackStr = stack || (configExists?.stack?.join(", ") ?? defaultStackStr);
       let addToGitignore = true;
 
       const isInteractive = this.terminalUI.capabilities.isInteractive && !yes;
@@ -65,6 +65,7 @@ export class InitService {
       }
 
       const projectConfig = {
+        ...(configExists || {}),
         name: finalName,
         stack: finalStackStr.split(",").map(s => s.trim()).filter(Boolean),
         instructions: configExists?.instructions || "This project is built using high quality development standards.",

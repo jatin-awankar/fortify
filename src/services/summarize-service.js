@@ -103,9 +103,14 @@ export class SummarizeService {
           break;
         }
 
-        const fileReadResult = await readTextFileForSummary(absoluteFilePath, {
-          maxChars: SUMMARY_SAFETY_LIMITS.maxFileChars
-        });
+        let fileReadResult;
+        try {
+          fileReadResult = await readTextFileForSummary(absoluteFilePath, {
+            maxChars: SUMMARY_SAFETY_LIMITS.maxFileChars
+          });
+        } catch (e) {
+          continue; // Skip inaccessible or locked files
+        }
 
         if (!fileReadResult.isText || !fileReadResult.content) {
           continue;
@@ -178,7 +183,14 @@ export class SummarizeService {
               signal: summaryController.signal
             });
             for await (const chunk of chunkStream) {
-              const text = typeof chunk === "string" ? chunk : (chunk?.delta || chunk?.text || chunk?.content || "");
+              let text = "";
+              if (typeof chunk === "string") {
+                text = chunk;
+              } else if (chunk?.type === "text_delta" && chunk.delta) {
+                text = chunk.delta;
+              } else if (!chunk?.type && (chunk?.delta || chunk?.text || chunk?.content)) {
+                text = chunk.delta || chunk.text || chunk.content || "";
+              }
               if (text) streamOutputText += text;
             }
             chunkSummaryResponse = { outputText: streamOutputText };

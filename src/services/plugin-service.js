@@ -72,10 +72,14 @@ export class PluginService {
       const files = await this.fs.readdir(this.pluginDir);
       for (const file of files) {
         if (file.endsWith(".json")) {
-          const content = await this.fs.readFile(path.join(this.pluginDir, file), "utf8");
-          const json = JSON.parse(content);
-          if (json.shortcuts && typeof json.shortcuts === "object") {
-            Object.assign(shortcuts, json.shortcuts);
+          try {
+            const content = await this.fs.readFile(path.join(this.pluginDir, file), "utf8");
+            const json = JSON.parse(content);
+            if (json.shortcuts && typeof json.shortcuts === "object") {
+              Object.assign(shortcuts, json.shortcuts);
+            }
+          } catch {
+            // Ignore corrupted json file
           }
         }
       }

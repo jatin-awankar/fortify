@@ -138,7 +138,7 @@ export class CommandService {
 
     console.log("🧩 Loaded Workspace Plugins:");
     if (plugins.length === 0) {
-      console.log("  (No custom plugins or rules.md found in .fortify/)");
+      console.log("  (No custom plugins or rules.md found)");
     } else {
       for (const p of plugins) {
         console.log(`  - ${p.name} [${p.type}] (${p.path})`);
@@ -156,8 +156,8 @@ export class CommandService {
   async initPluginTemplates() {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const fortifyDir = path.join(process.cwd(), ".fortify");
-    const pluginsDir = path.join(fortifyDir, "plugins");
+    const pluginsDir = this.pluginService.pluginDir;
+    const fortifyDir = path.dirname(pluginsDir);
 
     await fs.mkdir(pluginsDir, { recursive: true });
 
@@ -167,12 +167,20 @@ export class CommandService {
         "@refactor": "Analyze the provided code and suggest clean, modular refactorings prioritizing readability and performance."
       }
     };
-    await fs.writeFile(path.join(pluginsDir, "sample-shortcuts.json"), JSON.stringify(sampleShortcuts, null, 2), "utf8");
+    try {
+      await fs.writeFile(path.join(pluginsDir, "sample-shortcuts.json"), JSON.stringify(sampleShortcuts, null, 2), { encoding: "utf8", flag: "wx" });
+    } catch (e) {
+      if (e.code !== "EEXIST") throw e;
+    }
 
     const sampleRules = `# Project Custom Rules\n- Maintain clean ESM modules.\n- Ensure all exported functions have input validation.\n`;
-    await fs.writeFile(path.join(fortifyDir, "rules.md"), sampleRules, "utf8");
+    try {
+      await fs.writeFile(this.pluginService.rulesFile, sampleRules, { encoding: "utf8", flag: "wx" });
+    } catch (e) {
+      if (e.code !== "EEXIST") throw e;
+    }
 
-    console.log("✨ Initialized sample plugins and rules file in .fortify/");
+    console.log(`✨ Initialized sample plugins and rules file in ${fortifyDir}`);
     this.#completeResult({ ok: true });
   }
 

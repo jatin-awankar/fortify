@@ -15,7 +15,7 @@ import { ToolRegistry } from "./tool-registry.js";
 import { ToolExecutor } from "./tool-executor.js";
 import { AgenticLoop } from "./agentic-loop.js";
 import { loadConfig } from "../config/index.js";
-import { stat, readFile, readdir } from "node:fs/promises";
+import { stat, readFile, readdir, open } from "node:fs/promises";
 import path from "node:path";
 
 function normalizeSessionId(sessionId) {
@@ -36,7 +36,7 @@ export class ChatService {
     projectContextService = new ProjectContextService(),
     pluginService = new PluginService(),
     configLoader = loadConfig,
-    fsPromises = { stat, readFile, readdir },
+    fsPromises = { stat, readFile, readdir, open },
     input = process.stdin,
     output = process.stdout,
     signalProcess = process,
@@ -83,10 +83,12 @@ export class ChatService {
             this.renderer.terminalUI.info(`Resuming latest session '${resolvedSessionId}'`);
           }
         } else {
-          resolvedSessionId = "default";
+          if (this.renderer.terminalUI && typeof this.renderer.terminalUI.warning === "function") {
+            this.renderer.terminalUI.warning("No recent sessions found. Creating new session 'latest'.");
+          }
         }
       } catch {
-        resolvedSessionId = "default";
+        // Retain 'latest' if history load fails
       }
     }
     return resolvedSessionId;
@@ -190,12 +192,12 @@ export class ChatService {
           break;
         }
 
-        const { content: attachedInput } = await this.resolveFileAttachments(trimmedInput);
-        const finalContent = await this.pluginService.expandPromptShortcuts(attachedInput);
+        const finalContent = await this.pluginService.expandPromptShortcuts(trimmedInput);
+        const { content: attachedInput } = await this.resolveFileAttachments(finalContent);
 
         this.conversationStore.addMessage(session.id, {
           role: "user",
-          content: finalContent
+          content: attachedInput
         });
         await this.#persistSession(session.id);
 
@@ -215,6 +217,9 @@ export class ChatService {
             signal: generationAbortController.signal,
             onModelFallback: ({ fromModel, toModel }) => {
               this.renderer.showModelFallback({ fromModel, toModel });
+              if (this.renderer.terminalUI && typeof this.renderer.terminalUI.warning === "function") {
+                this.renderer.terminalUI.warning(`Context window limits may change for fallback model '${toModel}'.`);
+              }
             },
           });
 
@@ -314,7 +319,7 @@ export class ChatService {
   }
 
   async resolveFileAttachments(userInput) {
-    const fileRefRegex = /@([a-zA-Z0-9_./\\-]+)/g;
+    const fileRefRegex = /@("[^"]+"|'[^']+'|[a-zA-Z0-9_./\\-]+)/g;
     const matches = [...userInput.matchAll(fileRefRegex)];
     if (!matches.length) {
       return { content: userInput, attachments: [] };
@@ -331,7 +336,7 @@ export class ChatService {
 
     let modifiedInput = userInput;
     const attachments = [];
-    const uniqueMatches = Array.from(new Set(matches.map(m => m[1])));
+    const uniqueMatches = Array.from(new Set(matches.map(m => m[1].replace(/^["']|["']$/g, ""))));
 
     for (let i = 0; i < Math.min(uniqueMatches.length, maxRefs); i++) {
       const relPath = uniqueMatches[i];
@@ -345,8 +350,17 @@ export class ChatService {
 
         let fileContent = "";
         if (fileStats.size > maxBytes) {
-          const rawBuffer = await this.fs.readFile(absPath);
-          fileContent = rawBuffer.toString("utf8", 0, maxBytes);
+          let fileHandle;
+          try {
+            fileHandle = await this.fs.open(absPath, "r");
+            const rawBuffer = Buffer.alloc(maxBytes);
+            const { bytesRead } = await fileHandle.read(rawBuffer, 0, maxBytes, 0);
+            fileContent = rawBuffer.toString("utf8", 0, bytesRead);
+          } finally {
+            if (fileHandle) {
+              await fileHandle.close();
+            }
+          }
           this.renderer.terminalUI.warning(
             `File @${relPath} exceeds configured size limit (${Math.round(maxBytes/1024)}KB). Loaded first ${Math.round(maxBytes/1024)}KB.`
           );
@@ -377,18 +391,27 @@ export class ChatService {
     }
 
     if (attachments.length > 0) {
-      modifiedInput += "\n\n---";
+      const attachmentMap = new Map();
       for (const att of attachments) {
-        const ext = path.extname(att.path).slice(1);
-        modifiedInput += `\n[Attachment: ${att.path}]\n\`\`\`${ext}\n${att.content}\n\`\`\`\n`;
+        attachmentMap.set(att.path, att);
       }
+
+      modifiedInput = modifiedInput.replace(fileRefRegex, (match, p1) => {
+        const relPath = p1.replace(/^["']|["']$/g, "");
+        const att = attachmentMap.get(relPath);
+        if (att) {
+          const ext = path.extname(att.path).slice(1);
+          return `\n[Attachment: ${att.path}]\n\`\`\`${ext}\n${att.content}\n\`\`\`\n`;
+        }
+        return match;
+      });
     }
 
     return { content: modifiedInput, attachments };
   }
 
   async autocompleteCompleter(line) {
-    const match = line.match(/@(\S*)$/);
+    const match = line.match(/@([^@\n]*)$/);
     if (!match) {
       return [[], line];
     }

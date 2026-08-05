@@ -267,6 +267,6 @@ describe("Integration: Slash Commands + StatusBar + MessageRenderer", () => {
     assert.equal(parsed.text, "response");
     assert.equal(parsed.toolCalls.length, 1);
     assert.equal(parsed.toolCalls[0].name, "read_file");
-    assert.deepEqual(parsed.toolCalls[0].arguments, {}, "Should fallback to empty object");
+    assert.equal(parsed.toolCalls[0].arguments, "invalid json{{{", "Should fallback to raw string");
   });
 });

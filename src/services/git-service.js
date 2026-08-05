@@ -94,8 +94,9 @@ export class GitService {
       return [];
     }
 
+    const safeCount = Math.max(1, parseInt(count, 10)) || 3;
     const result = await this.#runGitCommand(
-      ["log", "-n", String(count), "--oneline"],
+      ["log", "-n", String(safeCount), "--oneline"],
       { cwd }
     );
     if (!result.ok) {
@@ -143,15 +144,7 @@ export class GitService {
       });
     }
 
-    const messageParts = normalizedMessage
-      .split(/\n\s*\n/g)
-      .map((part) => part.trim())
-      .filter(Boolean);
-
-    const gitArgs = ["commit"];
-    for (const messagePart of messageParts) {
-      gitArgs.push("-m", messagePart);
-    }
+    const gitArgs = ["commit", "-m", normalizedMessage];
 
     const result = await this.#runGitCommand(gitArgs, { cwd });
     if (!result.ok) {

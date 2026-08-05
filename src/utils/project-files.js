@@ -1,4 +1,4 @@
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat, open } from "node:fs/promises";
 import path from "node:path";
 
 const IGNORED_DIRECTORY_NAMES = new Set([
@@ -107,7 +107,12 @@ export async function collectProjectTextFiles(
       return;
     }
 
-    const entries = await readdir(currentDirectoryPath, { withFileTypes: true });
+    let entries;
+    try {
+      entries = await readdir(currentDirectoryPath, { withFileTypes: true });
+    } catch {
+      return;
+    }
 
     for (const entry of entries) {
       if (discoveredFiles.length >= maxFiles) {
@@ -140,36 +145,51 @@ export async function readTextFileForSummary(
   filePath,
   { maxChars = 80_000 } = {}
 ) {
-  const fileBuffer = await readFile(filePath);
+  let fileHandle;
+  try {
+    fileHandle = await open(filePath, "r");
+    const probeBuffer = Buffer.alloc(8192);
+    const { bytesRead } = await fileHandle.read(probeBuffer, 0, 8192, 0);
 
-  if (containsNullByte(fileBuffer)) {
-    return {
-      content: "",
-      isText: false,
-      truncated: false
-    };
-  }
+    if (containsNullByte(probeBuffer.subarray(0, bytesRead))) {
+      return {
+        content: "",
+        isText: false,
+        truncated: false
+      };
+    }
 
-  const rawText = fileBuffer.toString("utf8");
-  if (!rawText.trim()) {
+    const maxReadBytes = Math.min(maxChars * 4, 10_000_000);
+    const contentBuffer = Buffer.alloc(maxReadBytes);
+    const { bytesRead: contentBytesRead } = await fileHandle.read(contentBuffer, 0, maxReadBytes, 0);
+    const rawText = contentBuffer.subarray(0, contentBytesRead).toString("utf8");
+
+    if (!rawText.trim()) {
+      return {
+        content: "",
+        isText: true,
+        truncated: false
+      };
+    }
+
+    const wasTruncated = (contentBytesRead === maxReadBytes) || (rawText.length > maxChars);
+
+    if (!wasTruncated) {
+      return {
+        content: rawText,
+        isText: true,
+        truncated: false
+      };
+    }
+
     return {
-      content: "",
+      content: rawText.slice(0, maxChars),
       isText: true,
-      truncated: false
+      truncated: true
     };
+  } finally {
+    if (fileHandle) {
+      await fileHandle.close();
+    }
   }
-
-  if (rawText.length <= maxChars) {
-    return {
-      content: rawText,
-      isText: true,
-      truncated: false
-    };
-  }
-
-  return {
-    content: rawText.slice(0, maxChars),
-    isText: true,
-    truncated: true
-  };
 }

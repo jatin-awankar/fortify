@@ -55,8 +55,10 @@ function normalizeSessionPayload(payload, limits) {
   const systemMessages = rawMessages.filter((m) => m?.role === "system");
   const nonSystemMessages = rawMessages.filter((m) => m?.role !== "system");
 
-  const slicedNonSystem = nonSystemMessages.slice(-limits.maxMessagesPerSession);
-  const messages = [...systemMessages, ...slicedNonSystem];
+  const slicedSystem = systemMessages.slice(-limits.maxMessagesPerSession);
+  const remainingSlots = Math.max(0, limits.maxMessagesPerSession - slicedSystem.length);
+  const slicedNonSystem = remainingSlots > 0 ? nonSystemMessages.slice(-remainingSlots) : [];
+  const messages = [...slicedSystem, ...slicedNonSystem];
 
   return {
     id,
@@ -110,7 +112,7 @@ export class LocalHistoryStore {
       const parsed = JSON.parse(raw);
       return normalizeSessionPayload(parsed, this.limits);
     } catch (error) {
-      if (error?.code === "ENOENT") {
+      if (error?.code === "ENOENT" || error instanceof SyntaxError) {
         return null;
       }
 
@@ -124,8 +126,7 @@ export class LocalHistoryStore {
     const entries = await readdir(this.getHistoryDirectory(), { withFileTypes: true });
     const files = entries
       .filter((entry) => entry.isFile() && entry.name.endsWith(HISTORY_FILE_EXTENSION))
-      .map((entry) => entry.name)
-      .slice(0, this.limits.maxSessionFiles);
+      .map((entry) => entry.name);
 
     const sessions = [];
     for (const fileName of files) {
@@ -133,7 +134,12 @@ export class LocalHistoryStore {
       const filePath = path.join(this.getHistoryDirectory(), fileName);
       try {
         const details = await stat(filePath);
+        // Do not load full session for just listing if possible, but loadSession is needed to get messageCount accurately.
+        // Wait, for listing we might want to do it faster, but loadSession is already here.
         const session = await this.loadSession(sessionId);
+        if (!session) {
+          continue;
+        }
 
         const mtimeMs = Number.isFinite(details.mtimeMs) ? details.mtimeMs : Date.now();
         const birthMs = Number.isFinite(details.birthtimeMs) && details.birthtimeMs > 0 ? details.birthtimeMs : mtimeMs;
@@ -150,7 +156,7 @@ export class LocalHistoryStore {
     }
 
     sessions.sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt)));
-    return sessions;
+    return sessions.slice(0, this.limits.maxSessionFiles);
   }
 
   async clearHistory() {

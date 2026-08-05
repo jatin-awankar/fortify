@@ -39,7 +39,9 @@ export function createCancellationController({
     signalProcess,
     onCancel: () => {
       if (!controller.signal.aborted) {
-        controller.abort(new Error(cancelMessage));
+        const error = new Error(cancelMessage);
+        error.name = "AbortError";
+        controller.abort(error);
       }
     }
   });

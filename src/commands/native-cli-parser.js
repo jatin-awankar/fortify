@@ -7,7 +7,7 @@ export function printHelpText(subcommand = "") {
   const ver = appMetadata.version;
 
   if (subcommand === "commit") {
-    console.log(`Usage: ${name} commit [options]
+    process.stdout.write(`Usage: ${name} commit [options]
 
 Prepare commit message drafts from staged changes and repository context.
 
@@ -21,12 +21,12 @@ Options:
   -p, --provider <name>    Override active AI provider (openai, anthropic, gemini, ollama)
   --model <name>           Override active model name
   -h, --help               display help for command
-`);
+\n`);
     return;
   }
 
   if (subcommand === "config") {
-    console.log(`Usage: ${name} config [command] [options]
+    process.stdout.write(`Usage: ${name} config [command] [options]
 
 Inspect, validate, and update local configuration settings.
 
@@ -36,11 +36,29 @@ Commands:
   set <key> <value>        Set a configuration option by key
   validate                 Validate local configuration settings
   -h, --help               display help for command
-`);
+\n`);
     return;
   }
 
-  console.log(`Usage: ${name} [options] [command]
+  if (subcommand === "plugin") {
+    process.stdout.write(`Usage: ${name} plugin [command]
+
+Manage workspace plugins, shortcuts, and rules.
+
+Commands:
+  list                     List loaded workspace plugins
+  init                     Initialize sample plugin shortcuts
+  -h, --help               display help for command\n\n`);
+    return;
+  }
+
+  const KNOWN_COMMANDS = new Set(["auth", "init", "explain", "summarize", "chat", "history"]);
+  if (KNOWN_COMMANDS.has(subcommand)) {
+    process.stdout.write(`Usage: ${name} ${subcommand} [options]\n\nRun '${name} --help' for an overview of all commands.\n`);
+    return;
+  }
+
+  process.stdout.write(`Usage: ${name} [options] [command]
 
 ${appMetadata.description} (v${ver})
 
@@ -62,7 +80,7 @@ Commands:
   chat [options]           Start an interactive assistant chat session
   history [options]        View or clear saved chat session history
   help [command]           display help for command
-`);
+\n`);
 }
 
 export async function parseAndRunNativeCli(argv = process.argv, commandService = new CommandService()) {
@@ -136,22 +154,45 @@ export async function parseAndRunNativeCli(argv = process.argv, commandService =
     const action = commandArgs[0] || "list";
     if (action === "init") {
       await commandService.initPluginTemplates();
-    } else {
+    } else if (action === "list") {
       await commandService.listPlugins();
+    } else {
+      console.error(`error: unknown command '${action}' for 'plugin'`);
+      process.exitCode = 1;
     }
     return;
   }
 
   if (commandName === "config") {
     const action = commandArgs[0] || "list";
+    if (!["list", "get", "set", "validate"].includes(action)) {
+      console.error(`error: unknown command '${action}' for 'config'`);
+      process.exitCode = 1;
+      return;
+    }
     const key = commandArgs[1] || "";
+    if ((action === "get" || action === "set") && !key) {
+      console.error(`error: missing required argument 'key'`);
+      process.exitCode = 1;
+      return;
+    }
     const value = commandArgs[2] || "";
+    if (action === "set" && !value) {
+      console.error(`error: missing required argument 'value'`);
+      process.exitCode = 1;
+      return;
+    }
     await commandService.config({ action, key, value });
     return;
   }
 
   if (commandName === "explain") {
     const target = commandArgs[0] || "";
+    if (!target) {
+      console.error(`error: missing required argument 'file-or-text'`);
+      process.exitCode = 1;
+      return;
+    }
     await commandService.explain({
       target,
       context: values.context || "",
@@ -177,6 +218,11 @@ export async function parseAndRunNativeCli(argv = process.argv, commandService =
 
   if (commandName === "summarize") {
     const source = commandArgs[0] || "";
+    if (!source) {
+      console.error(`error: missing required argument 'path'`);
+      process.exitCode = 1;
+      return;
+    }
     await commandService.summarize({
       source,
       format: values.format || "bullet",
@@ -187,7 +233,7 @@ export async function parseAndRunNativeCli(argv = process.argv, commandService =
   }
 
   if (commandName === "chat") {
-    const resumeId = values.resume || values.session || "";
+    const resumeId = values.resume === true ? "latest" : (values.resume || values.session || "");
     await commandService.chat({
       mode: values.mode || "default",
       sessionId: resumeId,
@@ -199,7 +245,7 @@ export async function parseAndRunNativeCli(argv = process.argv, commandService =
 
   if (commandName === "history") {
     const isClear = Boolean(values.clear || commandArgs[0] === "clear");
-    const showTarget = values.show || (commandArgs[0] && commandArgs[0] !== "clear" ? commandArgs[0] : "");
+    const showTarget = values.show || (commandArgs[0] && !["clear", "list"].includes(commandArgs[0]) ? commandArgs[0] : "");
     await commandService.history({
       list: Boolean(values.list || (!showTarget && !isClear)),
       show: showTarget,

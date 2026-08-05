@@ -309,7 +309,17 @@ export class ToolUseCard {
   renderContent(content, { indent = 2, forceExpand = false } = {}) {
     if (!this.#canWrite()) return "";
 
-    const lines = Array.isArray(content) ? content : (content || "").split("\n");
+    const rawContent = Array.isArray(content) ? content.join("\n") : (content || "");
+    const stripAnsi = (str) => str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
+    const cleanContent = stripAnsi(rawContent);
+
+    if (!cleanContent) return "";
+
+    const rawLines = cleanContent.split("\n");
+    const lines = rawLines.map(line => 
+      line.length > 1000 ? line.slice(0, 1000) + `... [${line.length - 1000} chars collapsed]` : line
+    );
+
     if (lines.length === 0) return "";
 
     const indentStr = "  ".repeat(indent);

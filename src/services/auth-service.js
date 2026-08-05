@@ -178,6 +178,15 @@ export class AuthService {
       }
       const endpoint = rawEndpoint.replace(/\/+$/, "");
 
+      try {
+        const response = await this.fetchFn(`${endpoint}/api/tags`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (error) {
+        throw new Error(`Could not connect to Ollama at ${endpoint}: ${error.message}`);
+      }
+
       await this.configUpdater({
         provider: "ollama",
         endpoints: {

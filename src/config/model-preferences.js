@@ -17,15 +17,13 @@ export function resolveModelChain(config, explicitModel, defaultModel = DEFAULT_
   const preferences = config?.modelPreferences ?? {};
   const chain = [];
 
-  appendUniqueModel(chain, explicitModel ?? preferences.defaultModel ?? defaultModel);
+  appendUniqueModel(chain, explicitModel || preferences.defaultModel || defaultModel);
 
   if (Array.isArray(preferences.fallbackModels)) {
     for (const model of preferences.fallbackModels) {
       appendUniqueModel(chain, model);
     }
   }
-
-  appendUniqueModel(chain, preferences.fallbackModel);
 
   if (chain.length === 0) {
     chain.push(defaultModel);

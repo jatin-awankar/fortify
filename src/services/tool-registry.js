@@ -162,7 +162,9 @@ export class ToolRegistry {
    */
   requiresPermission(name) {
     const tool = this.#tools.get(name);
-    return tool?.requiresPermission ?? true;
+    if (!tool) return true;
+    if (tool.requiresPermission === false) return false;
+    return true;
   }
 
   /**
@@ -196,11 +198,14 @@ export class ToolRegistry {
         }
       }
 
+      const requiresPermission = tool.requiresPermission !== false;
+      const descSuffix = requiresPermission ? " (Requires User Permission)" : "";
+
       schemas.push({
         type: "function",
         function: {
           name: tool.name,
-          description: tool.description,
+          description: tool.description + descSuffix,
           parameters: {
             type: "object",
             properties,
@@ -222,7 +227,7 @@ export class ToolRegistry {
       const params = Object.entries(tool.parameters || {})
         .map(([name, def]) => `${name}${def.required ? "*" : ""}`)
         .join(", ");
-      const perm = tool.requiresPermission ? " [requires permission]" : "";
+      const perm = tool.requiresPermission !== false ? " [requires permission]" : "";
       lines.push(`  - ${tool.name}(${params}): ${tool.description}${perm}`);
     }
     return lines.join("\n");

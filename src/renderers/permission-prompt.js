@@ -117,6 +117,11 @@ export class PermissionPrompt {
         }
         this.stdout.write("\n");
 
+        if (input === '\u0003') {
+          this.stdout.write(this.chalk.red("✖ Aborted by user\n"));
+          process.exit(1);
+        }
+
         if (input === "y" || input === "yes") {
           resolve(true);
         } else if (input === "n" || input === "no") {
@@ -214,6 +219,10 @@ export class PermissionPrompt {
         let label;
 
         switch (key) {
+          case '\u0003': // Ctrl+C
+            this.stdout.write(this.chalk.red("✖ Aborted by user\n"));
+            process.exit(1);
+            break;
           case "y":
           case "":
             response = defaultAllow ? PERMISSION_RESPONSE.ALLOW : (key === "y" ? PERMISSION_RESPONSE.ALLOW : PERMISSION_RESPONSE.DENY);

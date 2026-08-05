@@ -12,7 +12,7 @@ export function buildChunkSummaryInput({
   chunkIndex,
   totalChunks,
   chunkContent
-}) {
+} = {}) {
   return [
     `File: ${relativePath}`,
     `Chunk: ${chunkIndex + 1}/${totalChunks}`,
@@ -22,8 +22,9 @@ export function buildChunkSummaryInput({
 }
 
 export function buildFinalSummaryInstructions({ format = "bullet" } = {}) {
+  const normalizedFormat = typeof format === "string" ? format.trim().toLowerCase() : "bullet";
   const formatRule =
-    format === "paragraph"
+    normalizedFormat === "paragraph"
       ? "Respond as short paragraphs with clear sections."
       : "Respond as concise bullet points grouped by topic.";
 
@@ -41,11 +42,11 @@ export function buildFinalSummaryInput({
   totalFiles,
   totalChunks,
   chunkSummaries
-}) {
-  const serializedChunkSummaries = chunkSummaries
+} = {}) {
+  const serializedChunkSummaries = (chunkSummaries || [])
     .map(
       (entry, index) =>
-        `${index + 1}. [${entry.relativePath} chunk ${entry.chunkIndex + 1}/${entry.totalChunks}]\n${entry.summary}`
+        `${index + 1}. [${entry?.relativePath} chunk ${(entry?.chunkIndex || 0) + 1}/${entry?.totalChunks}]\n${entry?.summary}`
     )
     .join("\n\n");
 

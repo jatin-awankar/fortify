@@ -91,7 +91,8 @@ export class OpenAIService {
         });
 
         const response = await this.#executeWithRetry(
-          async () => {
+          async (internalSignal) => {
+            const activeSignal = internalSignal || signal;
             if (typeof this.clientFactory === "function") {
               const apiKey = await this.#loadApiKey();
               const client = this.clientFactory({
@@ -99,10 +100,10 @@ export class OpenAIService {
                 maxRetries: 0,
                 timeout: timeoutMs ?? this.timeoutMs,
               });
-              return client.responses.create(requestPayload, { signal });
+              return client.responses.create(requestPayload, { signal: activeSignal });
             }
 
-            return this.#rawFetchRequest(requestPayload, { timeoutMs, signal });
+            return this.#rawFetchRequest(requestPayload, { timeoutMs, signal: activeSignal });
           },
           { timeoutMs, maxRetries, signal },
         );
@@ -148,6 +149,7 @@ export class OpenAIService {
       });
       const modelIterator = modelStream[Symbol.asyncIterator]();
 
+      let chunksYielded = 0;
       try {
         while (true) {
           const { done, value } = await modelIterator.next();
@@ -156,6 +158,7 @@ export class OpenAIService {
           }
 
           yield value;
+          chunksYielded++;
         }
 
         return;
@@ -168,7 +171,12 @@ export class OpenAIService {
           }
         }
 
-        lastError = normalizeOpenAIError(error);
+        lastError = normalizeOpenAIError(error, { fallbackMessage: "Failed during OpenAI stream." });
+
+        if (chunksYielded > 0) {
+          throw lastError;
+        }
+
         const nextModel = modelChain[modelIndex + 1];
 
         if (!nextModel || !isModelFallbackEligibleError(lastError)) {
@@ -209,14 +217,15 @@ export class OpenAIService {
 
     if (typeof this.clientFactory === "function") {
       const stream = await this.#executeWithRetry(
-        async () => {
+        async (internalSignal) => {
+          const activeSignal = internalSignal || signal;
           const apiKey = await this.#loadApiKey();
           const client = this.clientFactory({
             apiKey,
             maxRetries: 0,
             timeout: timeoutMs ?? this.timeoutMs,
           });
-          return client.responses.create(requestPayload, { signal });
+          return client.responses.create(requestPayload, { signal: activeSignal });
         },
         { timeoutMs, maxRetries, signal },
       );
@@ -499,16 +508,27 @@ export class OpenAIService {
       `OpenAI request timed out after ${timeoutMs}ms.`,
     );
 
+    const internalController = new AbortController();
+
     let timeoutId;
     const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => reject(timeoutError), timeoutMs);
+      timeoutId = setTimeout(() => {
+        internalController.abort(timeoutError);
+        reject(timeoutError);
+      }, timeoutMs);
     });
 
     const { promise: abortPromise, cleanup: cleanupAbortListener } =
       this.#createAbortPromise(signal);
+      
+    if (signal) {
+      signal.addEventListener("abort", () => {
+        internalController.abort(signal.reason);
+      }, { once: true });
+    }
 
     try {
-      return await Promise.race([operation(), timeoutPromise, abortPromise]);
+      return await Promise.race([operation(internalController.signal), timeoutPromise, abortPromise]);
     } finally {
       clearTimeout(timeoutId);
       cleanupAbortListener();

@@ -21,7 +21,7 @@ export function normalizeErrorForOutput(error, fallbackCategory = "error", { ver
     ok: false,
     category,
     code: code ?? "ERROR",
-    message: error instanceof Error ? error.message : String(error ?? "Unknown error."),
+    message: error instanceof Error ? error.message : (error?.message ? String(error.message) : String(error ?? "Unknown error.")),
   };
 
   if (verbose && error instanceof Error && error.stack) {

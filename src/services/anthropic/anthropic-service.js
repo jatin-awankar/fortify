@@ -85,23 +85,30 @@ export class AnthropicService {
 
     let lastError;
     for (const selectedModel of modelChain) {
+      let chunksYielded = 0;
       try {
         const stream = this.#streamForModel({
-          apiKey,
-          selectedModel,
           input,
+          selectedModel,
           instructions,
           maxOutputTokens,
+          apiKey,
           signal
         });
 
         for await (const chunk of stream) {
           yield chunk;
+          chunksYielded++;
         }
 
         return; // Success
       } catch (err) {
         lastError = err;
+        
+        if (chunksYielded > 0) {
+          throw err;
+        }
+
         const isQuotaOrModelErr = err?.message?.includes("429") || err?.message?.includes("rate_limit") || err?.message?.includes("not_found");
         if (!isQuotaOrModelErr) {
           throw err;
@@ -129,14 +136,21 @@ export class AnthropicService {
         if (msg.role === "system") {
           systemPrompt = systemPrompt ? `${systemPrompt}\n\n${msg.content}` : msg.content;
         } else {
-          messages.push({
-            role: msg.role === "assistant" ? "assistant" : "user",
-            content: msg.content
-          });
+          const role = msg.role === "assistant" ? "assistant" : "user";
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg && lastMsg.role === role) {
+            lastMsg.content = `${lastMsg.content}\n\n${msg.content}`;
+          } else {
+            messages.push({ role, content: msg.content });
+          }
         }
       }
     } else if (typeof input === "string") {
       messages.push({ role: "user", content: input });
+    }
+
+    if (messages.length > 0 && messages[0].role !== "user") {
+      messages.unshift({ role: "user", content: "[System initiated conversation]" });
     }
 
     const bodyPayload = {

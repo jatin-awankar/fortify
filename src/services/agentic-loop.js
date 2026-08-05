@@ -63,6 +63,11 @@ export class AgenticLoop {
     while (iterations < this.maxIterations) {
       // Check for abort
       if (signal?.aborted) {
+        this.onComplete({
+          text: finalText,
+          toolResults: allToolResults,
+          iterations,
+        });
         return {
           text: finalText,
           toolResults: allToolResults,
@@ -79,9 +84,29 @@ export class AgenticLoop {
       try {
         response = await sendToLLM(conversationMessages, toolSchemas);
       } catch (error) {
+        if (signal?.aborted || (error instanceof Error && (error.name === "AbortError" || error.code === "ABORT_ERR" || error.name === "APIUserAbortError"))) {
+          this.onComplete({
+            text: finalText,
+            toolResults: allToolResults,
+            iterations,
+          });
+          return {
+            text: finalText,
+            toolResults: allToolResults,
+            iterations,
+            aborted: true,
+          };
+        }
+
         // LLM call failed — break the loop
+        finalText = `Error calling LLM: ${error instanceof Error ? error.message : String(error)}`;
+        this.onComplete({
+          text: finalText,
+          toolResults: allToolResults,
+          iterations,
+        });
         return {
-          text: `Error calling LLM: ${error instanceof Error ? error.message : String(error)}`,
+          text: finalText,
           toolResults: allToolResults,
           iterations,
           aborted: false,
@@ -111,13 +136,26 @@ export class AgenticLoop {
       });
 
       // Execute tool calls
-      const toolCalls = response.toolCalls.map((tc) => ({
-        name: tc.name,
-        arguments: typeof tc.arguments === "string"
-          ? JSON.parse(tc.arguments)
-          : (tc.arguments || {}),
-        id: tc.id || `call_${Date.now()}_${tc.name}`,
-      }));
+      const toolCalls = response.toolCalls.map((tc) => {
+        let parsedArgs = tc.arguments || {};
+        let parseError = false;
+        
+        if (typeof tc.arguments === "string") {
+          try {
+            parsedArgs = JSON.parse(tc.arguments);
+          } catch (e) {
+            parseError = true;
+            parsedArgs = { _fortify_parse_error: true, raw: tc.arguments };
+          }
+        }
+        
+        return {
+          name: tc.name,
+          arguments: parsedArgs,
+          id: tc.id || `call_${Date.now()}_${tc.name}`,
+          _parseError: parseError
+        };
+      });
 
       const results = await this.executor.executeAll(toolCalls, context);
       allToolResults.push(...results);
@@ -186,7 +224,7 @@ export class AgenticLoop {
       arguments: tc.function?.arguments
         ? (() => {
             try { return JSON.parse(tc.function.arguments); }
-            catch { return {}; }
+            catch { return tc.function.arguments; }
           })()
         : {},
     }));

@@ -107,7 +107,7 @@ export class TerminalUI {
 
   async withSpinner(text, task, options = {}) {
     if (!this.capabilities.shouldUseSpinner) {
-      return task();
+      return task({ text, succeed: () => {}, fail: () => {}, stop: () => {} });
     }
 
     const spinner = this.startSpinner(text, options);
@@ -153,7 +153,10 @@ export class TerminalUI {
 
     this.stdout.write(`\n${headerStr}\n${separatorStr}\n`);
     for (const row of rows) {
-      const rowStr = row.map((cell, i) => String(cell ?? "").padEnd(colWidths[i])).join(" │ ");
+      const rowStr = row
+        .slice(0, headers.length)
+        .map((cell, i) => String(cell ?? "").padEnd(colWidths[i]))
+        .join(" │ ");
       this.stdout.write(`${rowStr}\n`);
     }
     this.stdout.write("\n");

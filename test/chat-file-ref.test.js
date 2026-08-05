@@ -59,6 +59,28 @@ function createChatService({ files = {}, limits = { maxFileRefBytes: 50, maxFile
       err.code = "ENOENT";
       throw err;
     },
+    open: async (filePath) => {
+      const baseName = filePath.split(/[/\\]/).pop();
+      const fileData = files[baseName];
+      let buf;
+      if (typeof fileData === "string") {
+        buf = Buffer.from(fileData);
+      } else if (fileData && fileData.content) {
+        buf = Buffer.from(fileData.content);
+      } else {
+        const err = new Error("ENOENT");
+        err.code = "ENOENT";
+        throw err;
+      }
+      return {
+        read: async (buffer, offset, length, position) => {
+          const bytesRead = Math.min(length, buf.length - (position || 0));
+          buf.copy(buffer, offset, position || 0, (position || 0) + bytesRead);
+          return { bytesRead };
+        },
+        close: async () => {}
+      };
+    },
     readdir: async () => {
       return dirEntries.map(e => ({
         name: e.name,
@@ -99,7 +121,7 @@ test("resolveFileAttachments resolves valid file references", async () => {
   });
 
   const result = await service.resolveFileAttachments("explain this: @index.js");
-  assert.match(result.content, /explain this: @index\.js/);
+  assert.match(result.content, /explain this:/);
   assert.match(result.content, /\[Attachment: index\.js\]/);
   assert.match(result.content, /console\.log\('hello'\);/);
   

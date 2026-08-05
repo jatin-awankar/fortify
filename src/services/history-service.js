@@ -18,7 +18,15 @@ export class HistoryService {
         return { ok: true, cleared: true };
       }
 
-      const showSessionId = typeof show === "string" ? show.trim() : "";
+      const showArg = typeof show === "string" ? show.trim() : "";
+      let showSessionId = showArg;
+      if (showArg === "latest") {
+        const sessions = await this.historyStore.listSessions();
+        if (sessions.length > 0) {
+          showSessionId = sessions[0].id;
+        }
+      }
+      
       if (showSessionId) {
         return await this.#showSession(showSessionId);
       }

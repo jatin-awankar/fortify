@@ -25,37 +25,46 @@ export async function promptSecretInput({
     }
 
     function onData(buffer) {
-      let chunk = Buffer.isBuffer(buffer) ? buffer.toString("utf8") : String(buffer);
-      chunk = chunk.replace(/\u001b\[200~/g, "").replace(/\u001b\[201~/g, "");
-      if (chunk.startsWith("\u001b") && chunk.length <= 10) {
-        return;
-      }
-
-      for (const key of chunk) {
-        if (NEWLINE_KEYS.has(key)) {
-          stdout.write("\n");
-          cleanup();
-          resolve(secret);
+      try {
+        let chunk = Buffer.isBuffer(buffer) ? buffer.toString("utf8") : String(buffer);
+        chunk = chunk.replace(/\u001b\[200~/g, "").replace(/\u001b\[201~/g, "");
+        if (chunk.startsWith("\u001b") && chunk.length <= 10) {
           return;
         }
 
-        if (key === CTRL_C) {
-          stdout.write("\n");
-          cleanup();
-          reject(new Error("Input cancelled."));
-          return;
-        }
-
-        if (BACKSPACE_KEYS.has(key)) {
-          if (secret.length > 0) {
-            secret = secret.slice(0, -1);
-            stdout.write("\b \b");
+        for (const key of chunk) {
+          if (NEWLINE_KEYS.has(key)) {
+            stdout.write("\n");
+            cleanup();
+            resolve(secret);
+            return;
           }
-          continue;
-        }
 
-        secret += key;
-        stdout.write(mask);
+          if (key === CTRL_C) {
+            stdout.write("\n");
+            cleanup();
+            reject(new Error("Input cancelled."));
+            return;
+          }
+
+          if (BACKSPACE_KEYS.has(key)) {
+            if (secret.length > 0) {
+              secret = secret.slice(0, -1);
+              if (mask.length > 0) {
+                const backspaces = "\b".repeat(mask.length);
+                const spaces = " ".repeat(mask.length);
+                stdout.write(`${backspaces}${spaces}${backspaces}`);
+              }
+            }
+            continue;
+          }
+
+          secret += key;
+          stdout.write(mask);
+        }
+      } catch (err) {
+        cleanup();
+        reject(err);
       }
     }
 

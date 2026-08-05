@@ -26,6 +26,7 @@ function normalizeCommitMessage(rawMessage) {
   const normalizedLines = withoutFences
     .replace(/\r\n/g, "\n")
     .split("\n")
+    .filter(line => !line.startsWith("#"))
     .map((line) => line.trimEnd());
 
   while (normalizedLines.length > 0 && !normalizedLines[normalizedLines.length - 1]) {
@@ -197,18 +198,15 @@ export class CommitService {
     try {
       await this.fs.writeFile(tempFile, initialMessage, "utf8");
       
-      const parts = editorCmd.split(" ");
-      const bin = parts[0];
-      const args = [...parts.slice(1), tempFile];
-
       if (this.renderer.terminalUI && typeof this.renderer.terminalUI.info === "function") {
         this.renderer.terminalUI.info(`Opening editor (${editorCmd})...`);
       }
 
       await new Promise((resolve, reject) => {
-        const child = this.childSpawner(bin, args, {
+        const child = this.childSpawner(editorCmd, [`"${tempFile}"`], {
           stdio: "inherit",
-          windowsHide: false
+          windowsHide: false,
+          shell: true
         });
 
         child.on("error", (err) => reject(err));
@@ -223,11 +221,6 @@ export class CommitService {
 
       const editedContent = await this.fs.readFile(tempFile, "utf8");
       return normalizeCommitMessage(editedContent);
-    } catch (err) {
-      if (typeof this.renderer.showError === "function") {
-        this.renderer.showError(`Failed to edit message in editor: ${err.message}`);
-      }
-      return initialMessage;
     } finally {
       try {
         await this.fs.unlink(tempFile);
@@ -239,7 +232,7 @@ export class CommitService {
 
   #validateConventionalCommit(message) {
     const firstLine = message.split("\n")[0].trim();
-    const conventionalRegex = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_-]+\))?: .+/;
+    const conventionalRegex = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_-]+\))?!?: .+/;
     return conventionalRegex.test(firstLine);
   }
 }

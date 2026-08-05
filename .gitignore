@@ -15,3 +15,6 @@ Thumbs.db
 *.tgz
 # Fortify context directory
 .fortify/
+*.log
+test_output.txt
+tap_output.txt

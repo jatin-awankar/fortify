@@ -16,10 +16,19 @@ export function createHistoryCommand(commandService) {
           `\nExamples:\n  ${appMetadata.cliName} history\n  ${appMetadata.cliName} history --list\n  ${appMetadata.cliName} history --show default\n  ${appMetadata.cliName} history --clear`
         )
         .action(async (options) => {
+          const list = Boolean(options.list);
+          const show = Boolean(options.show);
+          const clear = Boolean(options.clear);
+
+          if ((list && show) || (list && clear) || (show && clear)) {
+            console.error("Error: --list, --show, and --clear are mutually exclusive.");
+            process.exit(1);
+          }
+
           await commandService.history({
-            list: Boolean(options.list),
+            list,
             show: options.show,
-            clear: Boolean(options.clear)
+            clear
           });
         });
     }

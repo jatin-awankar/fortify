@@ -2,7 +2,7 @@ export function parseApiErrorResponse(status, errorText, providerName = "AI Prov
   let parsedMessage = "";
   try {
     const json = JSON.parse(errorText);
-    if (json?.error?.message) {
+    if (typeof json?.error?.message === "string") {
       // Pick first meaningful sentence/line
       parsedMessage = json.error.message.split("\n")[0].trim();
     } else if (typeof json?.error === "string") {
@@ -20,5 +20,6 @@ export function parseApiErrorResponse(status, errorText, providerName = "AI Prov
     return `${providerName} API authentication failed (${status}): Invalid API key or permission denied. Run \`fortify auth\` to update your key.`;
   }
 
-  return `${providerName} API error (${status}): ${parsedMessage || errorText.slice(0, 150)}`;
+  const fallbackMessage = parsedMessage || Array.from(errorText || "").slice(0, 150).join("");
+  return `${providerName} API error (${status}): ${fallbackMessage}`;
 }

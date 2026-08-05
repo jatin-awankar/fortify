@@ -9,11 +9,7 @@ import {
 import { createTerminalUI } from "../renderers/index.js";
 import { getRuntimeOptions } from "../utils/runtime-options.js";
 
-const REDACTED_KEYS = new Set([
-  "apiKeys.openai",
-  "apiKeys.anthropic",
-  "apiKeys.gemini"
-]);
+
 
 function parseConfigValue(rawValue) {
   const trimmed = String(rawValue ?? "").trim();
@@ -37,11 +33,15 @@ function parseConfigValue(rawValue) {
     return JSON.parse(trimmed);
   }
 
+  if (trimmed !== "" && !Number.isNaN(Number(trimmed))) {
+    return Number(trimmed);
+  }
+
   return rawValue;
 }
 
 function redactConfigValue(keyPath, value) {
-  if (!REDACTED_KEYS.has(keyPath)) {
+  if (!keyPath.startsWith("apiKeys.")) {
     return value;
   }
 
@@ -57,14 +57,13 @@ function redactConfigValue(keyPath, value) {
 }
 
 function redactConfig(config) {
+  const redactedApiKeys = { ...config.apiKeys };
+  for (const provider of Object.keys(redactedApiKeys)) {
+    redactedApiKeys[provider] = redactConfigValue(`apiKeys.${provider}`, redactedApiKeys[provider]);
+  }
   return {
     ...config,
-    apiKeys: {
-      ...config.apiKeys,
-      openai: redactConfigValue("apiKeys.openai", config.apiKeys?.openai ?? ""),
-      anthropic: redactConfigValue("apiKeys.anthropic", config.apiKeys?.anthropic ?? ""),
-      gemini: redactConfigValue("apiKeys.gemini", config.apiKeys?.gemini ?? ""),
-    },
+    apiKeys: redactedApiKeys,
   };
 }
 
@@ -116,8 +115,11 @@ export class ConfigService {
     let parsedValue;
     try {
       parsedValue = parseConfigValue(value);
+      if (parsedValue === null) {
+        throw new Error("Cannot set config value to null.");
+      }
     } catch (error) {
-      this.terminalUI.error("Config value must be valid JSON when using object or array syntax.");
+      this.terminalUI.error(error.message === "Cannot set config value to null." ? error.message : "Config value must be valid JSON when using object or array syntax.");
       return { ok: false, reason: "invalid_value", key, error };
     }
 

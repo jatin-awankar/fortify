@@ -42,25 +42,31 @@ export class InMemoryConversationStore {
       return this.getOrCreateSession("default");
     }
 
+    const rawMessages = Array.isArray(session.messages) ? session.messages : [];
+    const maxMessages = 400;
+    const maxChars = 8000;
+
+    const messages = rawMessages.slice(-maxMessages).map((message) => ({
+      role: normalizeRole(message?.role),
+      content: (typeof message?.content === "string" ? message.content : String(message?.content ?? "")).slice(0, maxChars),
+      createdAt: typeof message?.createdAt === "string" ? message.createdAt : new Date().toISOString()
+    }));
+
     const normalizedSession = {
       id: buildSessionId(session.id),
       createdAt: typeof session.createdAt === "string" ? session.createdAt : new Date().toISOString(),
-      messages: Array.isArray(session.messages)
-        ? session.messages.map((message) => ({
-            role: normalizeRole(message?.role),
-            content: typeof message?.content === "string" ? message.content : String(message?.content ?? ""),
-            createdAt: typeof message?.createdAt === "string" ? message.createdAt : new Date().toISOString()
-          }))
-        : []
+      messages
     };
 
     this.sessions.set(normalizedSession.id, normalizedSession);
     return normalizedSession;
   }
 
-  addMessage(sessionId, { role, content }) {
+  addMessage(sessionId, { role, content } = {}) {
     const session = this.getOrCreateSession(sessionId);
-    const normalizedContent = typeof content === "string" ? content : String(content ?? "");
+    const maxChars = 8000;
+    const maxMessages = 400;
+    const normalizedContent = (typeof content === "string" ? content : String(content ?? "")).slice(0, maxChars);
 
     const message = {
       role: normalizeRole(role),
@@ -69,6 +75,10 @@ export class InMemoryConversationStore {
     };
 
     session.messages.push(message);
+    if (session.messages.length > maxMessages) {
+      session.messages.shift();
+    }
+
     return message;
   }
 

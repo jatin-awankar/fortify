@@ -91,6 +91,7 @@ export class GeminiService {
 
     let lastError;
     for (const selectedModel of modelChain) {
+      let chunksYielded = 0;
       try {
         const stream = this.#streamForModel({
           input,
@@ -104,11 +105,17 @@ export class GeminiService {
 
         for await (const chunk of stream) {
           yield chunk;
+          chunksYielded++;
         }
 
         return; // Success
       } catch (err) {
         lastError = err;
+        
+        if (chunksYielded > 0) {
+          throw err;
+        }
+
         const msg = (err?.message || "").toLowerCase();
         const shouldFallback = msg.includes("429") || msg.includes("404") || msg.includes("503") || msg.includes("quota") || msg.includes("resource_exhausted") || msg.includes("no longer available") || msg.includes("not_found") || msg.includes("high demand") || msg.includes("unavailable") || msg.includes("overloaded");
         
@@ -139,10 +146,13 @@ export class GeminiService {
         if (msg.role === "system") {
           systemText = systemText ? `${systemText}\n\n${msg.content}` : msg.content;
         } else {
-          contents.push({
-            role: msg.role === "assistant" ? "model" : "user",
-            parts: [{ text: msg.content }]
-          });
+          const role = msg.role === "assistant" ? "model" : "user";
+          const lastMsg = contents[contents.length - 1];
+          if (lastMsg && lastMsg.role === role) {
+            lastMsg.parts[0].text = `${lastMsg.parts[0].text}\n\n${msg.content}`;
+          } else {
+            contents.push({ role, parts: [{ text: msg.content }] });
+          }
         }
       }
     } else if (typeof input === "string") {
@@ -150,6 +160,10 @@ export class GeminiService {
         role: "user",
         parts: [{ text: input }]
       });
+    }
+
+    if (contents.length > 0 && contents[0].role !== "user") {
+      contents.unshift({ role: "user", parts: [{ text: "[System initiated conversation]" }] });
     }
 
     const bodyPayload = {
@@ -208,6 +222,10 @@ export class GeminiService {
 
             try {
               const data = JSON.parse(dataStr);
+              const finishReason = data.candidates?.[0]?.finishReason;
+              if (finishReason === "SAFETY" || finishReason === "RECITATION") {
+                throw new Error(`Google Gemini API blocked the response due to safety filter (${finishReason}).`);
+              }
               const textChunk = data.candidates?.[0]?.content?.parts?.[0]?.text;
               if (textChunk) {
                 yield {
@@ -215,7 +233,8 @@ export class GeminiService {
                   delta: textChunk
                 };
               }
-            } catch {
+            } catch (err) {
+              if (err.message.includes("safety filter")) throw err;
               // ignore invalid JSON chunks
             }
           }
@@ -229,9 +248,15 @@ export class GeminiService {
           if (dataStr !== "[DONE]") {
             try {
               const data = JSON.parse(dataStr);
+              const finishReason = data.candidates?.[0]?.finishReason;
+              if (finishReason === "SAFETY" || finishReason === "RECITATION") {
+                throw new Error(`Google Gemini API blocked the response due to safety filter (${finishReason}).`);
+              }
               const textChunk = data.candidates?.[0]?.content?.parts?.[0]?.text;
               if (textChunk) yield { type: "text_delta", delta: textChunk };
-            } catch {}
+            } catch (err) {
+              if (err.message.includes("safety filter")) throw err;
+            }
           }
         }
       }
