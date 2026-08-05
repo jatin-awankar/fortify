@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-let version = "0.8.0";
+let version = "0.8.1";
 try {
   const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
   if (pkg.version) {

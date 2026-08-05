@@ -40,7 +40,7 @@ export class ChatSessionRenderer {
    *
    * Renders:
    * ```
-   * ╭─ Fortify v0.8.0 ──────────────────────────────────────────╮
+   * ╭─ Fortify v0.8.1 ──────────────────────────────────────────╮
    * │ Model: gpt-4o (openai)  │  Session: sess-8f92a            │
    * │ CWD: ~/projects/app     │  Branch: main                   │
    * ╰──────────────────────────────────────────────────────────-─╯

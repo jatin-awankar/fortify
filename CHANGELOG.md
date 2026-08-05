@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1
+
+- **83 Core Bug Fixes**: Hardened architecture across Anthropic and Gemini role validation rules, mitigated silent socket memory leaks in OpenAI streams, resolved permission prompt logic collisions, fixed dependency injection overrides in Auth service, patched destructive non-interactive initialization, and implemented robust Agentic Loop `AbortError` recovery.
+- Adheres strictly to SemVer patch rules for bugfix releases.
+
 ## 0.8.0
 
 - **Agentic Tool Execution Scaffold**: Built the full multi-turn LLM ↔ tool-use loop (`AgenticLoop`) with `ToolRegistry` (6 built-in tools, OpenAI function-calling schema generation), `ToolExecutor` (permission checks, animated card rendering, stats tracking), and MAX_ITERATIONS safety with abort signal support.
