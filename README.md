@@ -1,29 +1,144 @@
-<div align="center">
+<div>
 
-# Fortify AI CLI
+<br/>
 
-**The Repo-Aware, Multi-Provider Terminal AI Assistant for Modern Engineering**
+# Fortify
 
-[![npm version](https://img.shields.io/npm/v/fortify-ai-cli.svg?style=flat-square&color=cb3837)](https://www.npmjs.com/package/fortify-ai-cli)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/jatin-awankar/fortify/ci.yml?branch=main&style=flat-square&label=build)](https://github.com/jatin-awankar/fortify/actions)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20.0.0-brightgreen.svg?style=flat-square)](https://nodejs.org/)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
+### Your AI-Powered Terminal Copilot — Repo-Aware, Multi-Provider, Zero Dependencies
 
-[Quickstart](#-quickstart) • [Features](#-key-features) • [Comparison](#-feature-comparison) • [Commands](#-command-reference) • [Providers & Config](#-provider--configuration-guide) • [Architecture](#-architecture)
+<br/>
+
+[![npm version](https://img.shields.io/npm/v/fortify-ai-cli.svg?style=for-the-badge&logo=npm&logoColor=white&color=cb3837)](https://www.npmjs.com/package/fortify-ai-cli)
+[![CI](https://img.shields.io/github/actions/workflow/status/jatin-awankar/fortify/ci.yml?branch=main&style=for-the-badge&logo=github&label=CI)](https://github.com/jatin-awankar/fortify/actions)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+[![Node](https://img.shields.io/badge/Node.js-≥20-brightgreen.svg?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-0-blueviolet.svg?style=for-the-badge)](#-why-zero-dependencies)
+[![PRs Welcome](https://img.shields.io/badge/PRs-Welcome-brightgreen.svg?style=for-the-badge)](CONTRIBUTING.md)
+
+<br/>
+
+<img src="assets/demo.gif" alt="Fortify CLI Demo — interactive chat, diff preview, and commit generation" width="720" />
+
+<br/>
+
+**Chat with your codebase · Generate smart commits · Explain errors instantly**
+**Switch between OpenAI, Claude, Gemini & Ollama with one command**
+
+<br/>
+
+[Get Started](#-get-started) · [Features](#-features) · [Commands](#-commands) · [Providers](#-providers) · [Plugins](#-plugins--rules) · [Architecture](#-architecture) · [Contributing](#-contributing)
 
 </div>
 
+<br/>
+
 ---
 
-### 💻 Next-Level Claude Code-like Terminal UX
+<br/>
+
+## Why Fortify?
+
+Most AI CLI tools are thin wrappers around a single API. Fortify is different — it's a **full terminal-native development environment** that understands your repo, respects your privacy, and works with the models _you_ choose.
+
+<table>
+<tr>
+<td width="50%">
+
+### 🧠 Repo-Aware Intelligence
+
+Fortify reads your `package.json`, `Cargo.toml`, `pyproject.toml`, or `go.mod`, detects your git branch & diff state, and injects workspace context into every prompt — automatically.
+
+</td>
+<td width="50%">
+
+### ⚡ Instant & Lightweight
+
+Zero runtime dependencies. Pure Node.js ESM. Sub-second install. `<10ms` cold startup. No SDK bloat, no supply-chain risk.
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+### 🔌 Any Model, Your Choice
+
+OpenAI GPT-4o · Anthropic Claude 3.5 Sonnet · Google Gemini · Ollama local models — switch providers with a single config change.
+
+</td>
+<td width="50%">
+
+### 🖥️ Claude Code-Level TUI
+
+Live action cards, animated spinners, git-style diff previews, tab-complete for `@files` and `/commands`, interactive permission prompts — all in your terminal.
+
+</td>
+</tr>
+</table>
+
+<br/>
+
+---
+
+<br/>
+
+## 🚀 Get Started
+
+### Install
+
+```bash
+# npm
+npm install -g fortify-ai-cli
+
+# pnpm
+pnpm add -g fortify-ai-cli
+
+# yarn
+yarn global add fortify-ai-cli
+
+# bun
+bun add -g fortify-ai-cli
+
+# or run without installing
+npx fortify-ai-cli --help
+```
+
+### Set Up
+
+```bash
+# 1 — authenticate with your AI provider (interactive wizard)
+fortify auth
+
+# 2 — initialize workspace context in your project root
+fortify init
+
+# 3 — start chatting
+fortify chat
+```
+
+That's it. Three commands and you're in.
+
+<br/>
+
+---
+
+<br/>
+
+## ✨ Features
+
+### Interactive Chat REPL
+
+Start a rich terminal AI session with full repo awareness:
+
+```bash
+fortify chat
+```
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ Fortify v0.8.1 | Model: gpt-4o (openai) | Session: sess-8f92a             │
+│ Fortify v0.8.1 | Model: gpt-4o (openai) | Session: sess-8f92a            │
 └──────────────────────────────────────────────────────────────────────────┘
 Commands: /help, /clear, /diff, /commit, /exit │ Files: @filename
-----------------------------------------------------------------------------
+────────────────────────────────────────────────────────────────────────────
 You > Refactor @src/services/chat-service.js to optimize token usage
 
 [1/3] Discovering workspace structure & context...
@@ -31,165 +146,122 @@ You > Refactor @src/services/chat-service.js to optimize token usage
 
 [2/3] Generating diff preview...
 ╭─ src/services/chat-service.js +2 -1 ─╮
-│ @@ -15,4 +15,5 @@                   │
-│ -const TIMEOUT_MS = 1000;             │
-│ +const TIMEOUT_MS = 5000;             │
-│ +const RETRY = true;                  │
-╰───────────────────────────────────────╯
+│ @@ -15,4 +15,5 @@                    │
+│ -const TIMEOUT_MS = 1000;            │
+│ +const TIMEOUT_MS = 5000;            │
+│ +const RETRY = true;                 │
+╰──────────────────────────────────────╯
 
 [3/3] Awaiting approval...
   ? Allow updating src/services/chat-service.js? [Y/n]
 ```
 
----
-
-## ⚡ Key Features
-
-Fortify is built to stand among the **Top 1% developer CLI tools**. Unlike simple LLM wrappers, Fortify brings **Claude Code-like interactive TUI action cards**, **git diff preview frames**, **slash-command & @file tab completions**, **deep repository context**, **native `$EDITOR` integration**, **pluggable cloud & local AI engines**, and **zero runtime dependencies** directly to your terminal.
-
-- 🖥️ **Claude Code-like TUI & Live Action Cards**: Real-time tool execution cards (`📄`, `📝`, `⚡`, `🧠`, `🔍`) with animated in-place line state transitions (`⠋` -> `✓`) and step progress counters (`[1/3]`).
-- 🎨 **Git-Style Unified Diff Preview Cards**: Rounded box frames (`╭─`, `╰─`) displaying colorized additions (`+`), deletions (`-`), and line change stats (`+2 -1`).
-- ⌨️ **Interactive REPL & Tab Completion**: Tab autocompletion for slash commands (`/commit`, `/explain`, `/summary`, `/clear`, `/help`, `/exit`) and recursive workspace file paths when typing `@filename`.
-- 🛡️ **Interactive Permission Confirmations**: Single-keypress permission prompts (`? Allow action? [Y/n]`) before performing file edits or executing shell commands.
-- ⚡ **100% Zero Runtime Dependencies**: Pure Node.js ESM architecture with `<10ms` startup times and zero supply-chain risk.
-- 🧠 **Repo-Aware Context Engine**: Automatically detects workspace signatures (`package.json`, `Cargo.toml`, `pyproject.toml`, `go.mod`), active Git branch, diff status, and project architecture.
-- ✏️ **Interactive `$EDITOR` Commit Workflow**: Draft high-quality git commit messages and review/edit them live in `$EDITOR`, `$VISUAL`, `code --wait`, `notepad`, or `nano` before committing (`fortify commit -i`).
-- 🔌 **Pluggable AI Backends**: Switch seamlessly between **OpenAI (GPT-4o/o1)**, **Anthropic (Claude 3.5 Sonnet)**, **Google Gemini**, and **Local Models via Ollama** (`llama3`, `deepseek-r1`, `qwen2.5`) with zero code changes.
+- **`@file` tab completion** — reference any file in your workspace
+- **Slash commands** — `/help`, `/clear`, `/model`, `/tools`, `/history`, `/exit`
+- **Session resume** — pick up where you left off with `--resume`
+- **Agentic tool loop** — multi-turn LLM ↔ tool execution with safety rails
 
 ---
 
-## 📊 Feature Comparison
+### AI Commit Messages
 
-| Feature | 🛡️ Fortify CLI | GitHub Copilot CLI | Aider | Cursor CLI |
-| :--- | :---: | :---: | :---: | :---: |
-| **Repo Signature & Stack Auto-Detection** | ✓ **Native (`fortify init`)** | ✘ | ✘ | ⚠️ Basic |
-| **Interactive Terminal `$EDITOR` Integration** | ✓ **Native (`-i / --interactive`)** | ✘ | ✘ | ✘ |
-| **Pluggable Backends (OpenAI, Claude 3.5, Ollama)** | ✓ **Native** | ✘ (OpenAI only) | ✓ | ✘ (Proprietary) |
-| **Workspace Prompt Shortcuts (`.fortify/plugins`)** | ✓ **Native** | ✘ | ✘ | ✘ |
-| **Tab Autocomplete `@file` References** | ✓ **Native** | ✘ | ✓ | ✘ |
-| **Conventional Commits Validator** | ✓ **Native (`--validate`)** | ✘ | ✘ | ✘ |
-| **Persistent Session Resume** | ✓ **Native (`--resume`)** | ✘ | ⚠️ Limited | ✘ |
-| **Local / Privacy-First LLMs (Ollama)** | ✓ **Native** | ✘ | ✓ | ✘ |
-
----
-
-## 🚀 Quickstart
-
-### Installation
-
-Install globally using your favorite package manager:
-
-```bash
-# via npm
-npm install -g fortify-ai-cli
-
-# via pnpm
-pnpm add -g fortify-ai-cli
-
-# via yarn
-yarn global add fortify-ai-cli
-
-# via bun
-bun add -g fortify-ai-cli
-```
-
-Or run directly without global installation:
-
-```bash
-npx fortify-ai-cli --help
-```
-
----
-
-### Step-by-Step Setup
-
-#### 1. Authenticate / Configure Provider
-
-Set up your OpenAI or Anthropic API key with the interactive wizard:
-
-```bash
-fortify auth
-```
-
-Alternatively, set your key directly or use environment variables:
-
-```bash
-# Configure Anthropic Claude
-fortify config set provider anthropic
-fortify config set apiKeys.anthropic "sk-ant-api..."
-
-# Or via environment variables
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
-
-#### 2. Initialize Your Workspace
-
-Run `fortify init` in your project root to auto-detect your stack and create repository context guidelines (`.fortify/rules.md`):
-
-```bash
-fortify init
-```
-
-#### 3. Launch Interactive Terminal REPL
-
-Start an interactive AI chat session with `@file` path auto-completion:
-
-```bash
-fortify chat
-```
-
-Inside the chat prompt:
-```text
-You > Explain the authentication logic in @src/services/auth-service.js and apply @refactor
-```
-
-#### 4. Generate & Review AI Commits
-
-Draft git commit messages based on staged/unstaged changes and edit them in your terminal `$EDITOR`:
+Generate, review, and edit commit messages from your staged diffs:
 
 ```bash
 fortify commit --interactive --validate
 ```
 
----
-
-## 📖 Command Reference
-
-| Command | Description | Key Flags & Options | Example Usage |
-| :--- | :--- | :--- | :--- |
-| **`fortify init`** | Initialize workspace context (`.fortify/project.json`, `.fortify/rules.md`) | `-y, --yes` (skip prompts) | `fortify init` |
-| **`fortify auth`** | Interactive authentication & provider wizard | `--provider <name>` | `fortify auth` |
-| **`fortify chat`** | Start interactive AI assistant REPL | `-r, --resume`, `--session <id>` | `fortify chat --resume` |
-| **`fortify commit`** | Draft AI commit messages from git diffs | `-i, --interactive`, `--validate`, `--dry-run` | `fortify commit -i --validate` |
-| **`fortify explain`** | Explain errors, stack traces, or code files | Inline error string or file path | `fortify explain "TypeError: undefined"` |
-| **`fortify summarize`** | Summarize workspace structure & codebase recursively | Directory path (default: `.`) | `fortify summarize src/` |
-| **`fortify plugin`** | Manage prompt shortcuts & custom rules | `list`, `init` | `fortify plugin list` |
-| **`fortify config`** | Inspect, set, and validate CLI configuration | `list`, `get <key>`, `set <key> <val>`, `validate` | `fortify config set model gpt-4o` |
-| **`fortify history`** | Manage saved interactive chat sessions | `list`, `--show <id>`, `--clear` | `fortify history list` |
+- Opens your `$EDITOR` / `$VISUAL` / `code --wait` for live editing
+- Validates against [Conventional Commits](https://www.conventionalcommits.org/) format
+- `--dry-run` to preview without committing
 
 ---
 
-## 🔌 Provider & Configuration Guide
+### Error Explainer
 
-Fortify supports multiple cloud AI providers as well as local zero-telemetry LLMs.
+Paste an error, get an instant explanation:
 
-### 1. OpenAI Config
+```bash
+fortify explain "TypeError: Cannot read properties of undefined (reading 'map')"
+```
+
+---
+
+### Codebase Summarizer
+
+Get a structural overview of any directory:
+
+```bash
+fortify summarize src/
+```
+
+---
+
+### Permission System
+
+Fortify **never** modifies files or runs commands without your approval:
+
+```text
+? Allow updating src/services/chat-service.js? [Y] Allow [n] Deny [a] Allow all [?] Explain
+```
+
+<br/>
+
+---
+
+<br/>
+
+## 📖 Commands
+
+| Command             | What it Does                           | Key Flags                                   |
+| :------------------ | :------------------------------------- | :------------------------------------------ |
+| `fortify init`      | Scaffold `.fortify/` workspace context | `-y` skip prompts                           |
+| `fortify auth`      | Interactive API key setup wizard       | `--provider <name>`                         |
+| `fortify chat`      | Launch AI chat REPL                    | `--resume`, `--session <id>`                |
+| `fortify commit`    | AI-generated commit messages           | `-i` interactive, `--validate`, `--dry-run` |
+| `fortify explain`   | Explain errors or code                 | Inline string or file path                  |
+| `fortify summarize` | Recursive codebase summary             | Directory path (default `.`)                |
+| `fortify plugin`    | Manage prompt shortcuts                | `list`, `init`                              |
+| `fortify config`    | Read/write CLI settings                | `list`, `get`, `set`, `validate`            |
+| `fortify history`   | Manage saved sessions                  | `list`, `--show <id>`, `--clear`            |
+
+<br/>
+
+---
+
+<br/>
+
+## 🔌 Providers
+
+Switch between providers at any time — no code changes required.
+
+### OpenAI
+
 ```bash
 fortify config set provider openai
 fortify config set model gpt-4o
 fortify config set apiKeys.openai "sk-..."
 ```
 
-### 2. Anthropic Config
+### Anthropic (Claude)
+
 ```bash
 fortify config set provider anthropic
 fortify config set model claude-3-5-sonnet-20241022
 fortify config set apiKeys.anthropic "sk-ant-..."
 ```
 
-### 3. Local Ollama Config (Privacy First)
-Ensure [Ollama](https://ollama.ai/) is running locally, then configure Fortify:
+### Google Gemini
+
+```bash
+fortify config set provider gemini
+fortify config set model gemini-2.0-flash
+fortify config set apiKeys.gemini "AI..."
+```
+
+### Ollama (Local / Privacy-First)
+
+Run models like `llama3`, `deepseek-r1`, `qwen2.5` entirely on your machine:
 
 ```bash
 fortify config set provider ollama
@@ -197,94 +269,196 @@ fortify config set baseUrl "http://localhost:11434"
 fortify config set model llama3
 ```
 
+> **Tip:** You can also set keys via environment variables: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`
+
+<br/>
+
 ---
 
-## 🛠️ Custom Plugins & Team Project Rules
+<br/>
 
-Fortify allows teams to standardize prompts and enforce codebase rules across environments.
+## 🧩 Plugins & Rules
 
-### Workspace Rules (`.fortify/rules.md`)
-Created during `fortify init`. Fortify injects these instructions into every prompt:
+### Workspace Rules
+
+`fortify init` creates `.fortify/rules.md` — instructions injected into every AI prompt:
 
 ```markdown
 # Repository Coding Rules
+
 - Use ES Modules (`import/export`).
 - Always write JSDoc comments for public methods.
 - Enforce strict error handling with custom Error subclasses.
 ```
 
-### Prompt Shortcuts (`.fortify/plugins/`)
-Create custom `.md` or `.json` prompt shortcuts. For example, `.fortify/plugins/security-check.md`:
+### Prompt Shortcuts
+
+Create reusable prompt templates in `.fortify/plugins/`. Example — `.fortify/plugins/security-check.md`:
 
 ```markdown
-Review the referenced code specifically for OWASP top 10 security vulnerabilities, unhandled promises, and sensitive key leaks.
+Review the referenced code for OWASP top 10 vulnerabilities,
+unhandled promises, and sensitive key leaks.
 ```
 
-Then invoke it instantly in chat:
+Then use it instantly:
+
 ```text
 You > Check @src/index.js with @security-check
 ```
 
+Manage plugins with:
+
+```bash
+fortify plugin list    # see available shortcuts
+fortify plugin init    # scaffold a new plugin
+```
+
+<br/>
+
 ---
+
+<br/>
+
+## 📊 Comparison
+
+| Capability                                         | Fortify | GitHub Copilot CLI | Aider | Cursor CLI |
+| :------------------------------------------------- | :-----: | :----------------: | :---: | :--------: |
+| Repo & stack auto-detection                        |   ✅    |         ❌         |  ❌   |     ⚠️     |
+| Interactive `$EDITOR` integration                  |   ✅    |         ❌         |  ❌   |     ❌     |
+| Multi-provider (OpenAI + Claude + Gemini + Ollama) |   ✅    |         ❌         |  ✅   |     ❌     |
+| Workspace plugins & rules                          |   ✅    |         ❌         |  ❌   |     ❌     |
+| Tab-complete `@file` references                    |   ✅    |         ❌         |  ✅   |     ❌     |
+| Conventional Commits validation                    |   ✅    |         ❌         |  ❌   |     ❌     |
+| Session persistence & resume                       |   ✅    |         ❌         |  ⚠️   |     ❌     |
+| Local-only / privacy-first LLMs                    |   ✅    |         ❌         |  ✅   |     ❌     |
+| Zero runtime dependencies                          |   ✅    |         ❌         |  ❌   |     ❌     |
+
+<br/>
+
+---
+
+<br/>
 
 ## 🏗️ Architecture
 
 ```mermaid
 flowchart TD
-    subgraph CLI ["Fortify Core CLI Layer"]
+    subgraph CLI ["CLI Layer"]
         Entry["bin/fortify.js"] --> Parser["Native CLI Parser"]
         Parser --> Loader["Command Loader"]
-        Loader --> Commands["Command Services (chat, commit, explain, etc.)"]
+        Loader --> Commands["Commands"]
     end
 
-    subgraph Context Engine ["Repository Context Engine"]
+    subgraph Context ["Context Engine"]
         Commands --> ContextService["ProjectContextService"]
-        ContextService --> Signature["Stack Auto-Detection (Package/Cargo/PyProject/Go)"]
-        ContextService --> Git["Git Metadata & Diff Analyzer"]
+        ContextService --> Signature["Stack Detection"]
+        ContextService --> Git["Git Metadata & Diffs"]
         Commands --> PluginService["Plugin & Rules Engine"]
         PluginService --> LocalRules[".fortify/plugins & rules.md"]
     end
 
-    subgraph Provider Factory ["Pluggable AI Provider Factory"]
+    subgraph Providers ["AI Provider Factory"]
         Commands --> Factory["ProviderFactory"]
-        Factory --> OpenAI["OpenAIService (GPT-4o/o1)"]
-        Factory --> Anthropic["AnthropicService (Claude 3.5)"]
-        Factory --> Ollama["OllamaService (Local LLMs)"]
+        Factory --> OpenAI["OpenAI"]
+        Factory --> Anthropic["Anthropic"]
+        Factory --> Gemini["Gemini"]
+        Factory --> Ollama["Ollama"]
     end
 
-    subgraph Renderer ["Terminal UI & Storage"]
-        Commands --> RendererUI["TerminalUI & Color Renderer"]
-        Commands --> SessionStorage["Session History & Config Storage"]
+    subgraph TUI ["Terminal UI"]
+        Commands --> Renderer["Color & Diff Renderer"]
+        Commands --> Storage["Session & Config Storage"]
     end
 ```
 
+#### Directory Layout
+
+```
+fortify/
+├── bin/fortify.js              # CLI entry point
+├── src/
+│   ├── commands/               # chat, commit, explain, summarize, init, auth, ...
+│   ├── services/               # context engine, provider factory, agentic loop
+│   │   ├── openai/             # OpenAI provider
+│   │   ├── anthropic/          # Anthropic provider
+│   │   ├── gemini/             # Gemini provider
+│   │   └── ollama/             # Ollama provider
+│   ├── renderers/              # terminal UI, spinners, diff cards, action cards
+│   ├── config/                 # configuration store & app metadata
+│   ├── prompts/                # system prompt templates
+│   ├── storage/                # session & history persistence
+│   └── utils/                  # shared utilities
+├── test/                       # node:test unit & integration tests
+├── .fortify/                   # workspace context (created by `fortify init`)
+└── docs/                       # showcase website
+```
+
+<br/>
+
 ---
 
-## 🧪 Development & Verification
+<br/>
 
-To contribute to Fortify CLI or test local changes:
+## 💎 Why Zero Dependencies?
 
-1. Clone the repository and install dependencies:
-   ```bash
-   git clone https://github.com/jatin-awankar/fortify.git
-   cd fortify
-   npm install
-   ```
+Fortify has **`"dependencies": {}`** in `package.json` — literally zero runtime third-party packages.
 
-2. Run unit tests:
-   ```bash
-   npm test
-   ```
+| What others use | What Fortify uses instead                        |
+| :-------------- | :----------------------------------------------- |
+| `openai` SDK    | Native `fetch` + SSE `TextDecoder` stream parser |
+| `chalk`         | `node:util` `styleText` + custom ANSI utility    |
+| `ora`           | Native braille-frame `NativeSpinner`             |
+| `commander`     | `node:util` `parseArgs` CLI router               |
 
-3. Run package verification pipeline:
-   ```bash
-   npm run verify
-   ```
+**Result:** Sub-second installs, `<10ms` startup, and zero supply-chain attack surface.
+
+<br/>
 
 ---
+
+<br/>
+
+## 🧪 Development
+
+```bash
+# clone & install
+git clone https://github.com/jatin-awankar/fortify.git
+cd fortify
+npm install
+
+# run tests (272+ tests, 0 failures)
+npm test
+
+# full publish verification
+npm run verify
+
+# test the CLI locally
+node ./bin/fortify.js --help
+
+# link globally for local dev
+npm link
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for PR guidelines, architecture rules, and commit conventions.
+
+<br/>
+
+---
+
+<br/>
+
+<div>
 
 ## 📄 License
 
-Distributed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE) for details.
 
-Developed with ❤️ by [Jatin Awankar](https://github.com/jatin-awankar)
+<br/>
+
+Built with ❤️ by [Jatin Awankar](https://github.com/jatin-awankar)
+
+<br/>
+
+**[⬆ Back to Top](#️-fortify)**
+
+</div>
