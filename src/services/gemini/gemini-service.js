@@ -264,4 +264,128 @@ export class GeminiService {
       reader.releaseLock?.();
     }
   }
+
+  /**
+   * Create a response with tool-use support (for agentic loop).
+   * Converts between OpenAI and Gemini function-calling formats.
+   */
+  async createResponse({ input, model, tools, signal }) {
+    const config = await this.configLoader();
+    const apiKey = config?.apiKeys?.gemini || process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      throw new GeminiConfigurationError("Google Gemini API key is missing.");
+    }
+
+    const selectedModel = model || config?.modelPreferences?.geminiModel || DEFAULT_GEMINI_MODEL;
+
+    const contents = [];
+    let systemText = "";
+
+    if (Array.isArray(input)) {
+      for (const msg of input) {
+        if (msg.role === "system") {
+          systemText = systemText ? `${systemText}\n\n${msg.content}` : msg.content;
+        } else if (msg.role === "tool") {
+          contents.push({
+            role: "function",
+            parts: [{
+              functionResponse: {
+                name: msg.name || "tool_result",
+                response: { content: msg.content },
+              },
+            }],
+          });
+        } else if (msg.role === "assistant" && msg.tool_calls) {
+          const parts = [];
+          if (msg.content) parts.push({ text: msg.content });
+          for (const tc of msg.tool_calls) {
+            parts.push({
+              functionCall: {
+                name: tc.function?.name || tc.name,
+                args: typeof tc.function?.arguments === "string"
+                  ? JSON.parse(tc.function.arguments)
+                  : (tc.function?.arguments || tc.arguments || {}),
+              },
+            });
+          }
+          contents.push({ role: "model", parts });
+        } else {
+          const role = msg.role === "assistant" ? "model" : "user";
+          const lastMsg = contents[contents.length - 1];
+          if (lastMsg && lastMsg.role === role) {
+            lastMsg.parts[0].text = `${lastMsg.parts[0].text}\n\n${msg.content}`;
+          } else {
+            contents.push({ role, parts: [{ text: msg.content }] });
+          }
+        }
+      }
+    }
+
+    if (contents.length > 0 && contents[0].role !== "user") {
+      contents.unshift({ role: "user", parts: [{ text: "[System initiated conversation]" }] });
+    }
+
+    const bodyPayload = {
+      contents,
+      generationConfig: { maxOutputTokens: 4096 },
+    };
+
+    if (systemText) {
+      bodyPayload.systemInstruction = { parts: [{ text: systemText }] };
+    }
+
+    if (Array.isArray(tools) && tools.length > 0) {
+      bodyPayload.tools = [{
+        functionDeclarations: tools.map((t) => ({
+          name: t.function?.name || t.name,
+          description: t.function?.description || t.description || "",
+          parameters: t.function?.parameters || t.parameters || { type: "object", properties: {} },
+        })),
+      }];
+    }
+
+    const url = `${this.baseUrl}/models/${selectedModel}:generateContent`;
+    const response = await this.fetchFn(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify(bodyPayload),
+      signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(parseApiErrorResponse(response.status, errorText, `Google Gemini (${selectedModel})`));
+    }
+
+    const data = await response.json();
+    const candidate = data?.candidates?.[0];
+    const parts = candidate?.content?.parts || [];
+
+    const textParts = parts.filter((p) => p.text);
+    const fnParts = parts.filter((p) => p.functionCall);
+
+    const openaiToolCalls = fnParts.map((fp, i) => ({
+      id: `call_gemini_${Date.now()}_${i}`,
+      type: "function",
+      function: {
+        name: fp.functionCall.name,
+        arguments: JSON.stringify(fp.functionCall.args || {}),
+      },
+    }));
+
+    return {
+      choices: [{
+        message: {
+          role: "assistant",
+          content: textParts.map((p) => p.text).join("\n") || null,
+          tool_calls: openaiToolCalls.length > 0 ? openaiToolCalls : undefined,
+        },
+        finish_reason: fnParts.length > 0 ? "tool_calls" : "stop",
+      }],
+    };
+  }
 }
