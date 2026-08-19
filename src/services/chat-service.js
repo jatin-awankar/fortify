@@ -17,6 +17,7 @@ import { AgenticLoop } from "./agentic-loop.js";
 import { registerAllHandlers } from "../tools/index.js";
 import { createFortifyIgnore } from "../config/fortifyignore.js";
 import { createCommandAllowlist } from "../config/command-allowlist.js";
+import { buildAgenticSystemPrompt } from "../config/agentic-system-prompt.js";
 import { loadConfig } from "../config/index.js";
 import { stat, readFile, readdir, open } from "node:fs/promises";
 import path from "node:path";
@@ -115,9 +116,22 @@ export class ChatService {
     let currentProvider = provider || "";
 
     const contextSummary = await this.projectContextService.getProjectContextSummary();
-    const contextPrompt = this.projectContextService.formatSystemPromptContext(contextSummary);
-    this.renderer.terminalUI.success(`Loaded project context: ${contextSummary.name} (${contextSummary.stack.join(", ")})`);
+    const baseContextPrompt = this.projectContextService.formatSystemPromptContext(contextSummary);
 
+    // Build the system prompt — enhanced for agentic mode
+    const isAgenticMode = mode === "agent" || mode === "agentic";
+    const contextPrompt = isAgenticMode
+      ? buildAgenticSystemPrompt({
+          basePrompt: baseContextPrompt,
+          toolSummary: this.toolRegistry.toSystemPromptSummary(),
+          cwd: this.projectContextService.cwd,
+        })
+      : baseContextPrompt;
+
+    this.renderer.terminalUI.success(`Loaded project context: ${contextSummary.name} (${contextSummary.stack.join(", ")})`);
+    if (isAgenticMode) {
+      this.renderer.terminalUI.info("Agentic mode active — tool use enabled.");
+    }
     // Load ignore patterns for tool handlers
     try {
       this._fortifyIgnore = await createFortifyIgnore({
@@ -230,29 +244,54 @@ export class ChatService {
         generationAbortController = new AbortController();
 
         try {
-          const providerService = await this.providerFactory.getProvider(currentProvider);
-          const stream = providerService.streamResponse({
-            input: responseInput,
-            model: currentModel !== "default" ? currentModel : undefined,
-            signal: generationAbortController.signal,
-            onModelFallback: ({ fromModel, toModel }) => {
-              this.renderer.showModelFallback({ fromModel, toModel });
-              if (this.renderer.terminalUI && typeof this.renderer.terminalUI.warning === "function") {
-                this.renderer.terminalUI.warning(`Context window limits may change for fallback model '${toModel}'.`);
-              }
-            },
-          });
+          const isAgenticMode = mode === "agent" || mode === "agentic";
 
-          const assistantMessage = await this.renderer.renderAssistantStream(stream, {
-            signal: generationAbortController.signal
-          });
-
-          if (assistantMessage) {
-            this.conversationStore.addMessage(session.id, {
-              role: "assistant",
-              content: assistantMessage
+          if (isAgenticMode) {
+            // Agentic mode: LLM ↔ tool execution loop
+            const result = await this.runAgenticTurn({
+              sessionId: session.id,
+              userMessage: attachedInput,
+              contextPrompt,
+              model: currentModel !== "default" ? currentModel : undefined,
+              provider: currentProvider,
+              signal: generationAbortController.signal,
             });
-            await this.#persistSession(session.id);
+
+            if (result.text) {
+              await this.renderer.messageRenderer.renderAssistantMessage(result.text);
+            }
+
+            if (result.iterations > 1) {
+              this.renderer.terminalUI?.info?.(
+                `Agentic loop completed in ${result.iterations} iterations (${result.toolResults.length} tool calls)`
+              );
+            }
+          } else {
+            // Streaming mode: direct LLM response (no tool use)
+            const providerService = await this.providerFactory.getProvider(currentProvider);
+            const stream = providerService.streamResponse({
+              input: responseInput,
+              model: currentModel !== "default" ? currentModel : undefined,
+              signal: generationAbortController.signal,
+              onModelFallback: ({ fromModel, toModel }) => {
+                this.renderer.showModelFallback({ fromModel, toModel });
+                if (this.renderer.terminalUI && typeof this.renderer.terminalUI.warning === "function") {
+                  this.renderer.terminalUI.warning(`Context window limits may change for fallback model '${toModel}'.`);
+                }
+              },
+            });
+
+            const assistantMessage = await this.renderer.renderAssistantStream(stream, {
+              signal: generationAbortController.signal
+            });
+
+            if (assistantMessage) {
+              this.conversationStore.addMessage(session.id, {
+                role: "assistant",
+                content: assistantMessage
+              });
+              await this.#persistSession(session.id);
+            }
           }
         } catch (error) {
           if (generationAbortController.signal.aborted || isAbortLikeError(error)) {
