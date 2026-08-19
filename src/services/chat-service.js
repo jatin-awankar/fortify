@@ -14,6 +14,9 @@ import { SlashCommandHandler } from "../renderers/slash-command-handler.js";
 import { ToolRegistry } from "./tool-registry.js";
 import { ToolExecutor } from "./tool-executor.js";
 import { AgenticLoop } from "./agentic-loop.js";
+import { registerAllHandlers } from "../tools/index.js";
+import { createFortifyIgnore } from "../config/fortifyignore.js";
+import { createCommandAllowlist } from "../config/command-allowlist.js";
 import { loadConfig } from "../config/index.js";
 import { stat, readFile, readdir, open } from "node:fs/promises";
 import path from "node:path";
@@ -60,12 +63,19 @@ export class ChatService {
     this.historyPersistenceDisabled = false;
     this.slashCommandHandler = slashCommandHandler || new SlashCommandHandler();
 
-    // Agentic tool execution scaffold
+    // Agentic tool execution
     this.toolRegistry = toolRegistry || new ToolRegistry();
     this.toolExecutor = toolExecutor || new ToolExecutor({
       toolRegistry: this.toolRegistry,
       stdout: output,
     });
+
+    // Register all real tool handlers
+    registerAllHandlers(this.toolExecutor);
+
+    // Shared tool context — injected into every handler call
+    this.commandAllowlist = createCommandAllowlist();
+
     this.agenticLoop = agenticLoop || new AgenticLoop({
       toolRegistry: this.toolRegistry,
       toolExecutor: this.toolExecutor,
@@ -107,6 +117,16 @@ export class ChatService {
     const contextSummary = await this.projectContextService.getProjectContextSummary();
     const contextPrompt = this.projectContextService.formatSystemPromptContext(contextSummary);
     this.renderer.terminalUI.success(`Loaded project context: ${contextSummary.name} (${contextSummary.stack.join(", ")})`);
+
+    // Load ignore patterns for tool handlers
+    try {
+      this._fortifyIgnore = await createFortifyIgnore({
+        cwd: this.projectContextService.cwd,
+      });
+    } catch {
+      // Continue without ignore patterns if loading fails
+      this._fortifyIgnore = null;
+    }
 
     const readlineInterface = createInterface({
       input: this.input,
@@ -294,6 +314,8 @@ export class ChatService {
       context: {
         sessionId,
         cwd: this.projectContextService.cwd,
+        commandAllowlist: this.commandAllowlist,
+        fortifyIgnore: this._fortifyIgnore,
       },
       signal,
     });

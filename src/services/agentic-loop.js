@@ -17,8 +17,8 @@ const MAX_ITERATIONS = 25;
  * 4. Re-send to LLM (continue loop)
  * 5. If LLM responds with text (no tool_calls) → done
  *
- * This is the "scaffold" implementation — it demonstrates the loop flow
- * and renders the correct tool cards, but uses stub handlers.
+ * This is the production implementation — handlers are registered via
+ * the tool registry index and execute real file/command operations.
  */
 export class AgenticLoop {
   constructor({

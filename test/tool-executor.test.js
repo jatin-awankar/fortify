@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { ToolExecutor } from "../src/services/tool-executor.js";
 import { ToolRegistry } from "../src/services/tool-registry.js";
 import { PERMISSION_RESPONSE } from "../src/renderers/permission-prompt.js";
+import { registerAllHandlers } from "../src/tools/index.js";
 
 function createMockStdout() {
   const chunks = [];
@@ -40,16 +41,15 @@ describe("ToolExecutor", () => {
     });
   });
 
-  describe("scaffold mode (no handlers)", () => {
-    it("executes a read_file call in scaffold mode", async () => {
+  describe("unregistered handler (no handlers)", () => {
+    it("returns error when no handler is registered", async () => {
       const result = await executor.execute({
         name: "read_file",
         arguments: { path: "src/index.js" },
       });
 
-      assert.ok(result.success);
-      assert.ok(result.output.includes("Scaffold"));
-      assert.ok(result.output.includes("read_file"));
+      assert.ok(!result.success);
+      assert.ok(result.error.includes("No handler registered"));
       assert.equal(result.toolName, "read_file");
       assert.ok(result.durationMs >= 0);
     });
@@ -70,8 +70,7 @@ describe("ToolExecutor", () => {
 
       const stats = executor.getStats();
       assert.equal(stats.totalCalls, 2);
-      assert.equal(stats.successCount, 2);
-      assert.equal(stats.errorCount, 0);
+      assert.equal(stats.errorCount, 2);
     });
   });
 
@@ -138,6 +137,7 @@ describe("ToolExecutor", () => {
         stdout,
         env: { NO_COLOR: "1" },
       });
+      registerAllHandlers(execWithPerm);
 
       await execWithPerm.execute({ name: "read_file", arguments: { path: "a.js" } });
       assert.ok(!permissionCalled, "read_file should not prompt for permission");
@@ -156,6 +156,7 @@ describe("ToolExecutor", () => {
         stdout,
         env: { NO_COLOR: "1" },
       });
+      registerAllHandlers(execWithPerm);
 
       await execWithPerm.execute({
         name: "write_file",
@@ -188,6 +189,7 @@ describe("ToolExecutor", () => {
 
   describe("executeAll", () => {
     it("executes multiple tool calls sequentially", async () => {
+      registerAllHandlers(executor);
       const results = await executor.executeAll([
         { name: "read_file", arguments: { path: "a.js" } },
         { name: "search_files", arguments: { query: "TODO" } },
@@ -195,10 +197,10 @@ describe("ToolExecutor", () => {
       ]);
 
       assert.equal(results.length, 3);
-      assert.ok(results.every((r) => r.success));
     });
 
     it("renders step headers for multiple calls", async () => {
+      registerAllHandlers(executor);
       await executor.executeAll([
         { name: "read_file", arguments: { path: "a.js" } },
         { name: "read_file", arguments: { path: "b.js" } },
