@@ -4,6 +4,7 @@ import { AgenticLoop } from "../src/services/agentic-loop.js";
 import { ToolRegistry } from "../src/services/tool-registry.js";
 import { ToolExecutor } from "../src/services/tool-executor.js";
 import { PERMISSION_RESPONSE } from "../src/renderers/permission-prompt.js";
+import { registerAllHandlers } from "../src/tools/index.js";
 
 function createMockStdout() {
   const chunks = [];
@@ -27,6 +28,9 @@ function createTestSetup() {
     stdout,
     env: { NO_COLOR: "1" },
   });
+
+  // Register real handlers so tool execution succeeds
+  registerAllHandlers(executor);
 
   return { stdout, registry, executor };
 }

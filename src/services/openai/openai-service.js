@@ -119,6 +119,53 @@ export class OpenAIService {
     );
   }
 
+  /**
+   * Create a response with tool-use support (for agentic loop).
+   *
+   * Returns the raw OpenAI chat completion response format:
+   *   { choices: [{ message: { content, tool_calls } }] }
+   *
+   * @param {object} options
+   * @param {string|object[]} options.input - Messages (OpenAI format)
+   * @param {string} [options.model] - Model name
+   * @param {object[]} [options.tools] - OpenAI function calling tools schema
+   * @param {AbortSignal} [options.signal] - Abort signal
+   * @returns {Promise<object>} OpenAI chat completion response
+   */
+  async createResponse({ input, model, tools, signal }) {
+    return this.#executeWithModelFallback(
+      async (selectedModel) => {
+        const requestPayload = await this.#buildRequestPayload({
+          input,
+          selectedModel,
+          stream: false,
+          tools,
+        });
+
+        const response = await this.#executeWithRetry(
+          async (internalSignal) => {
+            const activeSignal = internalSignal || signal;
+            if (typeof this.clientFactory === "function") {
+              const apiKey = await this.#loadApiKey();
+              const client = this.clientFactory({
+                apiKey,
+                maxRetries: 0,
+                timeout: this.timeoutMs,
+              });
+              return client.chat.completions.create(requestPayload, { signal: activeSignal });
+            }
+
+            return this.#rawFetchRequest(requestPayload, { signal: activeSignal });
+          },
+          { signal },
+        );
+
+        return response;
+      },
+      { model },
+    );
+  }
+
   async *streamResponse({
     input,
     model,
@@ -416,6 +463,7 @@ export class OpenAIService {
     temperature,
     metadata,
     stream,
+    tools,
   }) {
     if (!selectedModel) {
       throw new OpenAIConfigurationError(
@@ -463,6 +511,12 @@ export class OpenAIService {
 
     if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
       payload.metadata = metadata;
+    }
+
+    // Tool-use support for agentic loop
+    if (Array.isArray(tools) && tools.length > 0) {
+      payload.tools = tools;
+      payload.tool_choice = "auto";
     }
 
     return payload;

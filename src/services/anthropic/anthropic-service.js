@@ -236,4 +236,125 @@ export class AnthropicService {
       reader.releaseLock?.();
     }
   }
+
+  /**
+   * Create a response with tool-use support (for agentic loop).
+   * Converts between OpenAI and Anthropic tool formats.
+   */
+  async createResponse({ input, model, tools, signal }) {
+    const config = await this.configLoader();
+    const apiKey = config?.apiKeys?.anthropic || process.env.ANTHROPIC_API_KEY;
+
+    if (!apiKey) {
+      throw new AnthropicConfigurationError(
+        "Anthropic API key is missing."
+      );
+    }
+
+    const selectedModel = model || config?.modelPreferences?.anthropicModel || DEFAULT_ANTHROPIC_MODEL;
+
+    const messages = [];
+    let systemPrompt = "";
+
+    if (Array.isArray(input)) {
+      for (const msg of input) {
+        if (msg.role === "system") {
+          systemPrompt = systemPrompt ? `${systemPrompt}\n\n${msg.content}` : msg.content;
+        } else if (msg.role === "tool") {
+          messages.push({
+            role: "user",
+            content: [{
+              type: "tool_result",
+              tool_use_id: msg.tool_call_id,
+              content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+            }],
+          });
+        } else if (msg.role === "assistant" && msg.tool_calls) {
+          const content = [];
+          if (msg.content) content.push({ type: "text", text: msg.content });
+          for (const tc of msg.tool_calls) {
+            content.push({
+              type: "tool_use",
+              id: tc.id,
+              name: tc.function?.name || tc.name,
+              input: typeof tc.function?.arguments === "string"
+                ? JSON.parse(tc.function.arguments)
+                : (tc.function?.arguments || tc.arguments || {}),
+            });
+          }
+          messages.push({ role: "assistant", content });
+        } else {
+          const role = msg.role === "assistant" ? "assistant" : "user";
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg && lastMsg.role === role && typeof lastMsg.content === "string") {
+            lastMsg.content = `${lastMsg.content}\n\n${msg.content}`;
+          } else {
+            messages.push({ role, content: msg.content });
+          }
+        }
+      }
+    }
+
+    if (messages.length > 0 && messages[0].role !== "user") {
+      messages.unshift({ role: "user", content: "[System initiated conversation]" });
+    }
+
+    const bodyPayload = {
+      model: selectedModel,
+      max_tokens: 4096,
+      messages,
+    };
+
+    if (systemPrompt) bodyPayload.system = systemPrompt;
+
+    if (Array.isArray(tools) && tools.length > 0) {
+      bodyPayload.tools = tools.map((t) => ({
+        name: t.function?.name || t.name,
+        description: t.function?.description || t.description || "",
+        input_schema: t.function?.parameters || t.parameters || { type: "object", properties: {} },
+      }));
+    }
+
+    const response = await this.fetchFn(`${this.baseUrl}/messages`, {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(bodyPayload),
+      signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(parseApiErrorResponse(response.status, errorText, `Anthropic Claude (${selectedModel})`));
+    }
+
+    const data = await response.json();
+
+    const textBlocks = (data.content || []).filter((b) => b.type === "text");
+    const toolBlocks = (data.content || []).filter((b) => b.type === "tool_use");
+
+    const openaiToolCalls = toolBlocks.map((tb) => ({
+      id: tb.id,
+      type: "function",
+      function: {
+        name: tb.name,
+        arguments: JSON.stringify(tb.input || {}),
+      },
+    }));
+
+    return {
+      choices: [{
+        message: {
+          role: "assistant",
+          content: textBlocks.map((b) => b.text).join("\n") || null,
+          tool_calls: openaiToolCalls.length > 0 ? openaiToolCalls : undefined,
+        },
+        finish_reason: data.stop_reason === "tool_use" ? "tool_calls" : "stop",
+      }],
+    };
+  }
 }
+

@@ -168,4 +168,94 @@ export class OllamaService {
       reader.releaseLock?.();
     }
   }
+
+  /**
+   * Create a response with tool-use support (for agentic loop).
+   * Uses Ollama's native tool calling support.
+   */
+  async createResponse({ input, model, tools, signal }) {
+    const config = await this.configLoader();
+    const endpoint = config?.endpoints?.ollama || DEFAULT_OLLAMA_ENDPOINT;
+
+    const installedModels = await this.fetchInstalledModels(endpoint);
+    const selectedModel = model || config?.modelPreferences?.ollamaModel || (installedModels[0] || DEFAULT_OLLAMA_MODEL);
+
+    const messages = [];
+    if (Array.isArray(input)) {
+      for (const msg of input) {
+        if (msg.role === "tool") {
+          messages.push({
+            role: "tool",
+            content: msg.content,
+          });
+        } else if (msg.role === "assistant" && msg.tool_calls) {
+          messages.push({
+            role: "assistant",
+            content: msg.content || "",
+            tool_calls: msg.tool_calls.map((tc) => ({
+              id: tc.id,
+              type: "function",
+              function: {
+                name: tc.function?.name || tc.name,
+                arguments: tc.function?.arguments || JSON.stringify(tc.arguments || {}),
+              },
+            })),
+          });
+        } else {
+          messages.push({
+            role: msg.role === "assistant" ? "assistant" : msg.role === "system" ? "system" : "user",
+            content: msg.content,
+          });
+        }
+      }
+    }
+
+    const bodyPayload = {
+      model: selectedModel,
+      messages,
+      stream: false,
+    };
+
+    // Ollama supports OpenAI-compatible tool format
+    if (Array.isArray(tools) && tools.length > 0) {
+      bodyPayload.tools = tools;
+    }
+
+    const response = await this.fetchFn(`${endpoint}/api/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(bodyPayload),
+      signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Ollama error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // Ollama returns tool_calls in message when tools are used
+    const toolCalls = (data.message?.tool_calls || []).map((tc, i) => ({
+      id: tc.id || `call_ollama_${Date.now()}_${i}`,
+      type: "function",
+      function: {
+        name: tc.function?.name,
+        arguments: typeof tc.function?.arguments === "string"
+          ? tc.function.arguments
+          : JSON.stringify(tc.function?.arguments || {}),
+      },
+    }));
+
+    return {
+      choices: [{
+        message: {
+          role: "assistant",
+          content: data.message?.content || null,
+          tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+        },
+        finish_reason: toolCalls.length > 0 ? "tool_calls" : "stop",
+      }],
+    };
+  }
 }

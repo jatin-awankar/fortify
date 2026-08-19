@@ -167,12 +167,13 @@ export class ToolExecutor {
     // 5. Execute handler
     const handler = this.#handlers.get(name);
     if (!handler) {
-      // Stub mode — no real handler registered yet
-      cardController.succeed(`${displayTitle}`, "scaffold — no handler");
-      this.stats.successCount++;
+      // No handler registered for this tool
+      cardController.fail(`No handler registered for tool '${name}'`);
+      this.stats.errorCount++;
       return {
-        success: true,
-        output: `[Scaffold] Tool '${name}' would execute with params: ${JSON.stringify(params)}`,
+        success: false,
+        output: "",
+        error: `No handler registered for tool '${name}'. Register handlers using registerAllHandlers().`,
         toolName: name,
         durationMs: Date.now() - startTime,
       };

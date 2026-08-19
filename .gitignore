@@ -18,3 +18,4 @@ Thumbs.db
 *.log
 test_output.txt
 tap_output.txt
+out.js
