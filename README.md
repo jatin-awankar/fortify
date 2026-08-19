@@ -135,7 +135,7 @@ fortify chat
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ Fortify v0.8.1 | Model: gpt-4o (openai) | Session: sess-8f92a            │
+│ Fortify v0.9.0 | Model: gpt-4o (openai) | Session: sess-8f92a            │
 └──────────────────────────────────────────────────────────────────────────┘
 Commands: /help, /clear, /diff, /commit, /exit │ Files: @filename
 ────────────────────────────────────────────────────────────────────────────

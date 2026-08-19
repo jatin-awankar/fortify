@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.9.0
+
+### Agentic Core — Real Tool Execution
+
+Fortify is now a fully agentic AI coding assistant. The LLM can autonomously read, write, edit, and search files, list directories, and execute shell commands — all within a controlled permission and security model.
+
+**New Features:**
+- **6 Tool Handlers**: `read_file`, `write_file`, `edit_file`, `search_files`, `list_directory`, `execute_command` — all implemented as isolated async handlers with comprehensive error handling
+- **Agentic Chat Mode**: `fortify chat --mode agent` activates the multi-turn LLM ↔ tool execution loop across all providers
+- **Provider Tool-Use Adapters**: `createResponse()` with tool calling support for OpenAI, Anthropic (format conversion), Gemini (functionDeclarations), and Ollama
+- **Agentic System Prompt**: Tool-use guidelines, safety notes, and working directory context injected in agent mode
+- **`.fortifyignore` Parser**: Glob-based file filtering with built-in defaults, `.gitignore` merging, and negation patterns
+- **Command Allowlist**: Prefix-based allowlist, dangerous command blocklist (rm -rf, fork bombs, curl|sh), shell metacharacter injection detection
+
+**Security:**
+- Path traversal protection on all file operations
+- Binary file detection and size limiting (100KB read, 50KB command output)
+- Command execution timeout (30s) with SIGTERM/SIGKILL escalation
+- Platform-aware shell selection (cmd.exe on Windows, /bin/sh on Unix)
+
+**Tests:** 220 new tests (484 total), zero regressions.
+
 ## 0.8.1
 
 - **83 Core Bug Fixes**: Hardened architecture across Anthropic and Gemini role validation rules, mitigated silent socket memory leaks in OpenAI streams, resolved permission prompt logic collisions, fixed dependency injection overrides in Auth service, patched destructive non-interactive initialization, and implemented robust Agentic Loop `AbortError` recovery.
