@@ -33,8 +33,8 @@ describe("buildAgenticSystemPrompt", () => {
 
   it("includes tool-use guidelines", () => {
     const result = buildAgenticSystemPrompt({ basePrompt, toolSummary });
-    assert.ok(result.includes("Read before writing"));
-    assert.ok(result.includes("Prefer targeted edits"));
+    assert.ok(result.includes("Read before you write"));
+    assert.ok(result.includes("targeted edits"));
     assert.ok(result.includes("Verify your work"));
   });
 
@@ -43,9 +43,9 @@ describe("buildAgenticSystemPrompt", () => {
     assert.ok(result.includes("Working Directory: /home/user/project"));
   });
 
-  it("uses process.cwd() when cwd is not provided", () => {
+  it("omits working directory when cwd is not provided", () => {
     const result = buildAgenticSystemPrompt({ basePrompt, toolSummary });
-    assert.ok(result.includes("Working Directory:"));
+    assert.ok(!result.includes("Working Directory:"));
   });
 
   it("includes file operation descriptions", () => {

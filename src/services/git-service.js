@@ -128,6 +128,98 @@ export class GitService {
     return result.stdout.trim() || null;
   }
 
+  /**
+   * Get all tracked files in the repository via `git ls-files`.
+   *
+   * @param {object} [options]
+   * @param {string} [options.cwd] - Working directory
+   * @returns {Promise<string[]>} Array of relative file paths (forward slashes)
+   */
+  async getTrackedFiles({ cwd = this.cwd } = {}) {
+    const isRepository = await this.isGitRepository({ cwd });
+    if (!isRepository) {
+      return [];
+    }
+
+    const result = await this.#runGitCommand(["ls-files"], { cwd });
+    if (!result.ok) {
+      return [];
+    }
+
+    return result.stdout
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+
+  /**
+   * Get file status (modified, added, untracked) via `git status --porcelain`.
+   *
+   * Returns a map of relative paths → status codes:
+   *  - "M"  = modified (staged or unstaged)
+   *  - "A"  = added (staged)
+   *  - "D"  = deleted
+   *  - "?"  = untracked
+   *  - "R"  = renamed
+   *
+   * @param {object} [options]
+   * @param {string} [options.cwd] - Working directory
+   * @returns {Promise<Map<string, string>>} Map of path → status code
+   */
+  async getFileStatus({ cwd = this.cwd } = {}) {
+    const isRepository = await this.isGitRepository({ cwd });
+    if (!isRepository) {
+      return new Map();
+    }
+
+    const result = await this.#runGitCommand(["status", "--porcelain"], { cwd });
+    if (!result.ok) {
+      return new Map();
+    }
+
+    const statusMap = new Map();
+    const lines = result.stdout.split("\n").filter(Boolean);
+
+    for (const line of lines) {
+      // Porcelain v1 format: "XY filename" — minimum 4 chars (XY + space + 1 char path)
+      if (line.length < 4) continue;
+
+      // X = index status, Y = worktree status
+      const indexStatus = line[0];
+      const worktreeStatus = line[1];
+      let filePath = line.slice(3).trim();
+
+      // Git wraps paths with special characters (spaces, non-ASCII) in double quotes
+      if (filePath.startsWith('"') && filePath.endsWith('"')) {
+        filePath = filePath.slice(1, -1);
+      }
+
+      // Handle renamed files — porcelain v1 uses "old -> new" arrow format
+      if (filePath.includes(" -> ")) {
+        filePath = filePath.split(" -> ").pop().trim();
+      }
+
+      if (!filePath) continue;
+
+      // Determine the most relevant status
+      if (indexStatus === "?" || worktreeStatus === "?") {
+        statusMap.set(filePath, "?");
+      } else if (indexStatus === "A") {
+        statusMap.set(filePath, "A");
+      } else if (indexStatus === "D" || worktreeStatus === "D") {
+        statusMap.set(filePath, "D");
+      } else if (indexStatus === "R") {
+        statusMap.set(filePath, "R");
+      } else if (indexStatus === "M" || worktreeStatus === "M") {
+        statusMap.set(filePath, "M");
+      } else if (indexStatus !== " " || worktreeStatus !== " ") {
+        statusMap.set(filePath, indexStatus !== " " ? indexStatus : worktreeStatus);
+      }
+    }
+
+    return statusMap;
+  }
+
   async commitWithMessage({ message, cwd = this.cwd } = {}) {
     const normalizedMessage = typeof message === "string" ? message.trim() : "";
 
