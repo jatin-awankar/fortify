@@ -2,6 +2,8 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { GitService } from "./git-service.js";
 
+const MEMORY_FILENAME = "memory.md";
+
 export class ProjectContextService {
   constructor({
     cwd = process.cwd(),
@@ -19,6 +21,14 @@ export class ProjectContextService {
 
   getProjectConfigPath() {
     return path.join(this.getProjectDirectory(), "project.json");
+  }
+
+  /**
+   * Get the path to the project memory file.
+   * @returns {string}
+   */
+  getMemoryPath() {
+    return path.join(this.getProjectDirectory(), MEMORY_FILENAME);
   }
 
   async loadProjectConfig() {
@@ -99,10 +109,20 @@ export class ProjectContextService {
     const instructions = config?.instructions || "";
     const name = config?.name || (isGit ? path.basename(this.cwd) : "unnamed-project");
 
+    // Check for memory file existence
+    let hasMemory = false;
+    try {
+      await this.fs.access(path.join(this.cwd, ".fortify", MEMORY_FILENAME));
+      hasMemory = true;
+    } catch {
+      // No memory file
+    }
+
     return {
       name,
       stack,
       instructions,
+      hasMemory,
       git: isGit ? {
         branch,
         recentCommits,
@@ -111,8 +131,18 @@ export class ProjectContextService {
     };
   }
 
+  /**
+   * Format project context for the system prompt.
+   *
+   * Returns project metadata ONLY (name, stack, git info).
+   * Identity/persona text is NOT included — the agentic system prompt builder
+   * adds its own identity block to avoid duplication.
+   *
+   * @param {object} summary - From getProjectContextSummary()
+   * @returns {string} Project context block for the system prompt
+   */
   formatSystemPromptContext(summary) {
-    let prompt = `You are Fortify, an AI-powered developer terminal assistant. Respond directly, concisely, and cleanly in markdown. Do NOT output internal draft monologues, thought processes, or reasoning lists.\n\n[Project Context]\nName: ${summary.name}\nStack: ${Array.isArray(summary.stack) ? summary.stack.join(", ") : summary.stack}\n`;
+    let prompt = `[Project Context]\nName: ${summary.name}\nStack: ${Array.isArray(summary.stack) ? summary.stack.join(", ") : summary.stack}\n`;
     if (summary.instructions) {
       prompt += `Custom Guidelines/Memory: ${summary.instructions}\n`;
     }
@@ -126,5 +156,19 @@ export class ProjectContextService {
       }
     }
     return prompt;
+  }
+
+  /**
+   * Format a complete system prompt with identity + project context.
+   *
+   * Used by non-agentic services (explain, commit) that need the full prompt
+   * but don't use the agentic prompt builder.
+   *
+   * @param {object} summary - From getProjectContextSummary()
+   * @returns {string} Full system prompt with identity and context
+   */
+  formatFullSystemPrompt(summary) {
+    const identity = "You are Fortify, an AI-powered developer terminal assistant. Respond directly, concisely, and cleanly in markdown. Do NOT output internal draft monologues, thought processes, or reasoning lists.";
+    return `${identity}\n\n${this.formatSystemPromptContext(summary)}`;
   }
 }

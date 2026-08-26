@@ -465,24 +465,23 @@ export function formatFileTree(tree, { indent = 0, showSymbols = true, showLines
 
   for (const file of fileEntries) {
     let entry = `${prefix}${file.name}`;
-    const meta = [];
 
+    // Build metadata parts cleanly — no post-hoc string replacement
+    const infoParts = [];
     if (file.status) {
-      meta.push(`[${file.status}]`);
+      infoParts.push(`[${file.status}]`);
     }
     if (showLines && file.lines > 0) {
-      meta.push(`${file.lines}L`);
-    }
-    if (showSymbols && file.symbols.length > 0) {
-      meta.push(`— ${file.symbols.join(", ")}`);
+      infoParts.push(`${file.lines}L`);
     }
 
-    if (meta.length > 0) {
-      entry += ` (${meta.filter((m) => !m.startsWith("—")).join(", ")})`;
-      const symbolMeta = meta.find((m) => m.startsWith("—"));
-      if (symbolMeta) {
-        entry = entry.replace(")", ` ${symbolMeta})`);
-      }
+    const hasSymbols = showSymbols && file.symbols.length > 0;
+    const symbolStr = hasSymbols ? `— ${file.symbols.join(", ")}` : "";
+
+    if (infoParts.length > 0 || hasSymbols) {
+      const infoStr = infoParts.length > 0 ? infoParts.join(", ") : "";
+      const separator = infoStr && symbolStr ? " " : "";
+      entry += ` (${infoStr}${separator}${symbolStr})`;
     }
 
     lines.push(entry);
@@ -707,11 +706,12 @@ export class RepoMapService {
         const trackedFiles = await this.gitService.getTrackedFiles({ cwd });
         if (trackedFiles.length > 0) {
           // Also include untracked files from git status
-          let untrackedFiles = [];
+          const untrackedFiles = [];
           try {
+            const trackedSet = new Set(trackedFiles);
             const statusMap = await this.gitService.getFileStatus({ cwd });
             for (const [filePath, status] of statusMap) {
-              if (status === "?" && !trackedFiles.includes(filePath)) {
+              if (status === "?" && !trackedSet.has(filePath)) {
                 untrackedFiles.push(filePath);
               }
             }
@@ -729,7 +729,9 @@ export class RepoMapService {
     }
 
     // Fallback: recursive directory walk
-    return this.#walkDirectory(cwd, cwd);
+    const walked = await this.#walkDirectory(cwd, cwd);
+    walked.sort((a, b) => a.localeCompare(b));
+    return walked;
   }
 
   /**
@@ -770,7 +772,6 @@ export class RepoMapService {
       }
     }
 
-    collected.sort((a, b) => a.localeCompare(b));
     return collected;
   }
 }

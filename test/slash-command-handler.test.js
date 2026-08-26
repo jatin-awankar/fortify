@@ -1,5 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import os from "node:os";
 import { SlashCommandHandler } from "../src/renderers/slash-command-handler.js";
 
 function createMockStdout() {
@@ -256,6 +258,77 @@ describe("SlashCommandHandler", () => {
       });
 
       assert.ok(stdout.output.includes("STATUS_BAR_RENDERED"));
+    });
+  });
+
+  describe("/context", () => {
+    it("shows project context summary", async () => {
+      const mockPcs = {
+        cwd: "/test/dir",
+        getProjectContextSummary: async () => ({
+          name: "test-app",
+          stack: ["Node.js"],
+          instructions: "Test instructions",
+          hasMemory: true,
+          git: { branch: "main", remoteUrl: "origin" }
+        })
+      };
+
+      await handler.execute("/context", {
+        renderer,
+        conversationStore: store,
+        session: { id: "test-session" },
+        projectContextService: mockPcs
+      });
+
+      assert.ok(stdout.output.includes("Project Context"));
+      assert.ok(stdout.output.includes("test-app"));
+      assert.ok(stdout.output.includes("Node.js"));
+      assert.ok(stdout.output.includes("Test instructions"));
+      assert.ok(stdout.output.includes("active")); // memory status
+      assert.ok(stdout.output.includes("main")); // branch
+    });
+  });
+
+  describe("/repo-map", () => {
+    it("generates repo map from cwd", async () => {
+      await handler.execute("/repo-map 5", {
+        renderer,
+        conversationStore: store,
+        session: { id: "test-session" },
+      });
+
+      assert.ok(stdout.output.includes("[Repository Map]"));
+    });
+
+    it("resolves /map alias to /repo-map", () => {
+      assert.ok(handler.isSlashCommand("/map"), "/map should be a valid alias");
+    });
+  });
+
+  describe("/memory", () => {
+    it("shows no memory message when empty", async () => {
+      const nonexistentCwd = path.join(os.tmpdir(), "fortify-nonexistent-dir-for-test");
+      await handler.execute("/memory", {
+        renderer,
+        conversationStore: store,
+        session: { id: "test-session" },
+        projectContextService: { cwd: nonexistentCwd }
+      });
+
+      assert.ok(stdout.output.includes("No project memory entries"));
+    });
+
+    it("shows usage hint when /memory add has no text", async () => {
+      const nonexistentCwd = path.join(os.tmpdir(), "fortify-nonexistent-dir-for-test");
+      await handler.execute("/memory add", {
+        renderer,
+        conversationStore: store,
+        session: { id: "test-session" },
+        projectContextService: { cwd: nonexistentCwd }
+      });
+
+      assert.ok(stdout.output.includes("Usage: /memory add"), "Should show usage hint");
     });
   });
 

@@ -70,7 +70,7 @@ export class CommitService {
     }
 
     const contextSummary = await this.projectContextService.getProjectContextSummary();
-    const contextPrompt = this.projectContextService.formatSystemPromptContext(contextSummary);
+    const contextPrompt = this.projectContextService.formatFullSystemPrompt(contextSummary);
 
     const stagedDiff = await this.gitService.getStagedDiff();
     if (!stagedDiff.trim()) {

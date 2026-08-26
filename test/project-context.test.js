@@ -125,3 +125,46 @@ test("ProjectContextService formats system prompt context correctly", () => {
   assert.match(formatted, /Recent Commits:/);
   assert.match(formatted, /- c1 commit one/);
 });
+
+// ── Phase 2 additions ────────────────────────────────────────────────
+
+test("getMemoryPath returns correct path under .fortify", () => {
+  const service = createProjectContextService();
+  const memoryPath = service.getMemoryPath();
+  assert.ok(memoryPath.includes(".fortify"), "Path should include .fortify dir");
+  assert.ok(memoryPath.endsWith("memory.md"), "Path should end with memory.md");
+});
+
+test("getProjectContextSummary sets hasMemory=true when memory.md exists", async () => {
+  const service = createProjectContextService({
+    files: { "package.json": true, "memory.md": true }
+  });
+  const summary = await service.getProjectContextSummary();
+  assert.equal(summary.hasMemory, true);
+});
+
+test("getProjectContextSummary sets hasMemory=false when memory.md absent", async () => {
+  const service = createProjectContextService({
+    files: { "package.json": true }
+  });
+  const summary = await service.getProjectContextSummary();
+  assert.equal(summary.hasMemory, false);
+});
+
+test("formatSystemPromptContext does NOT include identity text", () => {
+  const service = createProjectContextService();
+  const summary = { name: "app", stack: ["Node.js"], instructions: "", git: null };
+  const formatted = service.formatSystemPromptContext(summary);
+  assert.ok(!formatted.includes("You are Fortify"), "Should not contain identity text");
+  assert.ok(formatted.includes("[Project Context]"), "Should have context header");
+});
+
+test("formatFullSystemPrompt includes identity + project context", () => {
+  const service = createProjectContextService();
+  const summary = { name: "app", stack: ["Go"], instructions: "", git: null };
+  const full = service.formatFullSystemPrompt(summary);
+  assert.ok(full.includes("You are Fortify"), "Should include identity text");
+  assert.ok(full.includes("[Project Context]"), "Should include context block");
+  assert.ok(full.includes("Name: app"), "Should include project name");
+  assert.ok(full.includes("Stack: Go"), "Should include stack");
+});

@@ -330,6 +330,30 @@ describe("formatFileTree", () => {
     assert.ok(lines[0].includes("a/"));
     assert.ok(lines[lines.length - 1].includes("b.js"));
   });
+
+  it("handles filenames containing parentheses without corrupting metadata", () => {
+    const files = [
+      { path: "helpers(v2).js", size: 100, lines: 10, symbols: ["createHelper"], status: "M" },
+    ];
+    const tree = buildFileTree(files);
+    const output = formatFileTree(tree);
+    // The entire metadata block should be at the end, not split by the filename's ')'
+    assert.ok(output.includes("helpers(v2).js"));
+    assert.ok(output.includes("[M]"));
+    assert.ok(output.includes("createHelper"));
+    // Metadata should be in a single parenthesized group after the filename
+    assert.match(output, /helpers\(v2\)\.js \([^\n]+\)/);
+  });
+
+  it("formats symbols-only metadata without leading comma", () => {
+    const files = [
+      { path: "app.js", size: 100, lines: 0, symbols: ["main"], status: "" },
+    ];
+    const tree = buildFileTree(files);
+    const output = formatFileTree(tree);
+    // No status, no lines — just symbols. Should not start with ", "
+    assert.ok(output.includes("(— main)"));
+  });
 });
 
 // ──────────────────────────────────────────────

@@ -18,6 +18,8 @@ import { registerAllHandlers } from "../tools/index.js";
 import { createFortifyIgnore } from "../config/fortifyignore.js";
 import { createCommandAllowlist } from "../config/command-allowlist.js";
 import { buildAgenticSystemPrompt } from "../config/agentic-system-prompt.js";
+import { RepoMapService } from "./repo-map-service.js";
+import { MemoryService } from "./memory-service.js";
 import { loadConfig } from "../config/index.js";
 import { stat, readFile, readdir, open } from "node:fs/promises";
 import path from "node:path";
@@ -118,21 +120,11 @@ export class ChatService {
     const contextSummary = await this.projectContextService.getProjectContextSummary();
     const baseContextPrompt = this.projectContextService.formatSystemPromptContext(contextSummary);
 
-    // Build the system prompt — enhanced for agentic mode
+    // Build the system prompt — enhanced for agentic mode with context engine
     const isAgenticMode = mode === "agent" || mode === "agentic";
-    const contextPrompt = isAgenticMode
-      ? buildAgenticSystemPrompt({
-          basePrompt: baseContextPrompt,
-          toolSummary: this.toolRegistry.toSystemPromptSummary(),
-          cwd: this.projectContextService.cwd,
-        })
-      : baseContextPrompt;
+    let contextPrompt;
 
-    this.renderer.terminalUI.success(`Loaded project context: ${contextSummary.name} (${contextSummary.stack.join(", ")})`);
-    if (isAgenticMode) {
-      this.renderer.terminalUI.info("Agentic mode active — tool use enabled.");
-    }
-    // Load ignore patterns for tool handlers
+    // Load ignore patterns BEFORE repo-map generation so filtering applies
     try {
       this._fortifyIgnore = await createFortifyIgnore({
         cwd: this.projectContextService.cwd,
@@ -140,6 +132,60 @@ export class ChatService {
     } catch {
       // Continue without ignore patterns if loading fails
       this._fortifyIgnore = null;
+    }
+
+    if (isAgenticMode) {
+      const cwd = this.projectContextService.cwd;
+
+      // Generate repo map
+      let repoMapText = "";
+      try {
+        const repoMapService = new RepoMapService({
+          gitService: this.projectContextService.gitService,
+          fortifyIgnore: this._fortifyIgnore,
+        });
+        const repoMap = await repoMapService.generateRepoMap({ cwd, includeSymbols: true });
+        repoMapText = repoMapService.formatForPrompt(repoMap);
+        if (repoMap.totalFiles > 0) {
+          this.renderer.terminalUI.success(
+            `Loaded repo map (${repoMap.totalFiles} files, ${repoMap.totalSymbols} symbols)`
+          );
+        }
+      } catch {
+        // Non-critical — continue without repo map
+      }
+
+      // Load persistent memory
+      let memoryText = "";
+      try {
+        const memoryService = new MemoryService();
+        const rawMemory = await memoryService.loadMemory(cwd);
+        if (rawMemory) {
+          memoryText = memoryService.formatForPrompt(rawMemory);
+          // Count entries from already-loaded content — no redundant file re-read
+          const entryCount = (rawMemory.match(/^## /gm) || []).length;
+          if (entryCount > 0) {
+            this.renderer.terminalUI.success(`Loaded project memory (${entryCount} entries)`);
+          }
+        }
+      } catch {
+        // Non-critical — continue without memory
+      }
+
+      contextPrompt = buildAgenticSystemPrompt({
+        basePrompt: baseContextPrompt,
+        toolSummary: this.toolRegistry.toSystemPromptSummary(),
+        cwd,
+        repoMap: repoMapText,
+        memory: memoryText,
+      });
+    } else {
+      contextPrompt = this.projectContextService.formatFullSystemPrompt(contextSummary);
+    }
+
+    this.renderer.terminalUI.success(`Loaded project context: ${contextSummary.name} (${contextSummary.stack.join(", ")})`);
+    if (isAgenticMode) {
+      this.renderer.terminalUI.info("Agentic mode active — tool use enabled.");
     }
 
     const readlineInterface = createInterface({

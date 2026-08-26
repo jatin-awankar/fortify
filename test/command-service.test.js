@@ -39,7 +39,8 @@ test("commit dry-run generates a message without executing git commit", async ()
     },
     projectContextService: {
       getProjectContextSummary: async () => ({ name: "test-app", stack: ["Node.js"], instructions: "", git: null }),
-      formatSystemPromptContext: () => "[Mock Project Context]"
+      formatSystemPromptContext: () => "[Mock Project Context]",
+      formatFullSystemPrompt: () => "[Mock Project Context]"
     }
   });
 

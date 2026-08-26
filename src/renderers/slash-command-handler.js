@@ -174,6 +174,175 @@ function getBuiltinCommands() {
         stdout.write("\n");
       },
     },
+    {
+      name: "/memory",
+      description: "Show, add, or clear project memory",
+      aliases: [],
+      handler: async (args, ctx) => {
+        const { renderer } = ctx;
+        const stdout = renderer.terminalUI?.stdout || process.stdout;
+        const chalk = renderer.terminalUI?.chalk;
+
+        // Dynamic import to avoid circular dependency at module load time
+        const { MemoryService } = await import("../services/memory-service.js");
+        const memoryService = new MemoryService();
+        const cwd = ctx.projectContextService?.cwd || process.cwd();
+
+        const subcommand = args.trim().split(/\s+/)[0]?.toLowerCase() || "";
+        const subArgs = args.trim().slice(subcommand.length).trim();
+
+        if (subcommand === "add" && subArgs) {
+          await memoryService.appendMemory(cwd, subArgs);
+          const count = await memoryService.countEntries(cwd);
+          if (renderer.messageRenderer) {
+            renderer.messageRenderer.renderInfo(`Memory entry added (${count} total entries).`);
+          } else {
+            renderer.terminalUI?.success(`Memory entry added (${count} total entries).`);
+          }
+          return;
+        }
+
+        if (subcommand === "add" && !subArgs) {
+          if (renderer.messageRenderer) {
+            renderer.messageRenderer.renderInfo("Usage: /memory add <text to remember>");
+          } else {
+            renderer.terminalUI?.info("Usage: /memory add <text to remember>");
+          }
+          return;
+        }
+
+        if (subcommand === "clear") {
+          await memoryService.clearMemory(cwd);
+          if (renderer.messageRenderer) {
+            renderer.messageRenderer.renderInfo("Project memory cleared.");
+          } else {
+            renderer.terminalUI?.success("Project memory cleared.");
+          }
+          return;
+        }
+
+        // Default: show memory contents
+        const content = await memoryService.loadMemory(cwd);
+        if (!content || !content.trim()) {
+          if (renderer.messageRenderer) {
+            renderer.messageRenderer.renderInfo("No project memory entries. Use /memory add <text> to create one.");
+          } else {
+            renderer.terminalUI?.info("No project memory entries. Use /memory add <text> to create one.");
+          }
+          return;
+        }
+
+        const count = await memoryService.countEntries(cwd);
+        stdout.write("\n");
+        stdout.write(`  ${chalk ? chalk.bold.cyan("Project Memory") : "Project Memory"} (${count} entries)\n`);
+        stdout.write(`  ${chalk ? chalk.dim(memoryService.getMemoryPath(cwd)) : memoryService.getMemoryPath(cwd)}\n\n`);
+        // Display entries with indentation
+        const lines = content.trim().split("\n");
+        for (const line of lines) {
+          if (line.startsWith("## ")) {
+            stdout.write(`  ${chalk ? chalk.yellow(line) : line}\n`);
+          } else {
+            stdout.write(`  ${chalk ? chalk.dim(line) : line}\n`);
+          }
+        }
+        stdout.write("\n");
+      },
+    },
+    {
+      name: "/context",
+      description: "Show loaded project context summary",
+      aliases: [],
+      handler: async (_args, ctx) => {
+        const { renderer, session } = ctx;
+        const stdout = renderer.terminalUI?.stdout || process.stdout;
+        const chalk = renderer.terminalUI?.chalk;
+
+        const pcs = ctx.projectContextService;
+        if (!pcs) {
+          if (renderer.messageRenderer) {
+            renderer.messageRenderer.renderInfo("No project context service available.");
+          }
+          return;
+        }
+
+        const summary = await pcs.getProjectContextSummary();
+
+        stdout.write("\n");
+        stdout.write(`  ${chalk ? chalk.bold.cyan("Project Context") : "Project Context"}\n\n`);
+        stdout.write(`  ${chalk ? chalk.dim("Name:") : "Name:"}     ${summary.name}\n`);
+        stdout.write(`  ${chalk ? chalk.dim("Stack:") : "Stack:"}    ${Array.isArray(summary.stack) ? summary.stack.join(", ") : summary.stack}\n`);
+        stdout.write(`  ${chalk ? chalk.dim("CWD:") : "CWD:"}      ${pcs.cwd}\n`);
+        stdout.write(`  ${chalk ? chalk.dim("Memory:") : "Memory:"}   ${summary.hasMemory ? chalk?.green("active") ?? "active" : chalk?.dim("none") ?? "none"}\n`);
+
+        if (summary.git) {
+          stdout.write(`  ${chalk ? chalk.dim("Branch:") : "Branch:"}   ${summary.git.branch || "unknown"}\n`);
+          if (summary.git.remoteUrl) {
+            stdout.write(`  ${chalk ? chalk.dim("Remote:") : "Remote:"}   ${summary.git.remoteUrl}\n`);
+          }
+        }
+
+        if (summary.instructions) {
+          stdout.write(`\n  ${chalk ? chalk.dim("Instructions:") : "Instructions:"}\n`);
+          stdout.write(`  ${chalk ? chalk.dim(summary.instructions) : summary.instructions}\n`);
+        }
+
+        const msgs = session ? (ctx.conversationStore?.getSession(session.id)?.messages?.length || 0) : 0;
+        stdout.write(`\n  ${chalk ? chalk.dim("Messages:") : "Messages:"} ${msgs}\n`);
+        stdout.write("\n");
+      },
+    },
+    {
+      name: "/repo-map",
+      description: "Show repository file tree with symbols",
+      aliases: ["/map"],
+      handler: async (args, ctx) => {
+        const { renderer } = ctx;
+        const stdout = renderer.terminalUI?.stdout || process.stdout;
+        const chalk = renderer.terminalUI?.chalk;
+
+        const { RepoMapService } = await import("../services/repo-map-service.js");
+
+        const pcs = ctx.projectContextService;
+        const cwd = pcs?.cwd || process.cwd();
+        const maxFiles = parseInt(args.trim(), 10) || 100;
+
+        const repoMapService = new RepoMapService({
+          gitService: pcs?.gitService,
+        });
+
+        const repoMap = await repoMapService.generateRepoMap({
+          cwd,
+          includeSymbols: true,
+          maxFiles,
+        });
+        const formatted = repoMapService.formatForPrompt(repoMap, {
+          maxTokens: 5000,
+          showSymbols: true,
+        });
+
+        if (!formatted) {
+          if (renderer.messageRenderer) {
+            renderer.messageRenderer.renderInfo("No files found in the repository.");
+          } else {
+            renderer.terminalUI?.info("No files found in the repository.");
+          }
+          return;
+        }
+
+        stdout.write("\n");
+        const lines = formatted.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("[Repository Map]")) {
+            stdout.write(`  ${chalk ? chalk.bold.cyan(line) : line}\n`);
+          } else if (line.endsWith("/")) {
+            stdout.write(`  ${chalk ? chalk.blue(line) : line}\n`);
+          } else {
+            stdout.write(`  ${chalk ? chalk.dim(line) : line}\n`);
+          }
+        }
+        stdout.write("\n");
+      },
+    },
   ];
 }
 

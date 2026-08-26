@@ -68,7 +68,8 @@ function createMockCommitService({
     },
     projectContextService: {
       getProjectContextSummary: async () => ({ name: "app", stack: ["Node.js"], instructions: "", git: null }),
-      formatSystemPromptContext: () => "[Context]"
+      formatSystemPromptContext: () => "[Context]",
+      formatFullSystemPrompt: () => "[Context]"
     },
     configLoader: async () => config,
     fsPromises: mockFs,

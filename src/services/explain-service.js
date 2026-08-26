@@ -59,7 +59,7 @@ export class ExplainService {
     }
 
     const contextSummary = await this.projectContextService.getProjectContextSummary();
-    const contextPrompt = this.projectContextService.formatSystemPromptContext(contextSummary);
+    const contextPrompt = this.projectContextService.formatFullSystemPrompt(contextSummary);
 
     const stackTrace = detectNodeStackTrace(resolvedInput.rawText);
     this.renderer.showStart({

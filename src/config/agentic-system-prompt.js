@@ -2,8 +2,8 @@
  * Agentic System Prompt Builder — production-grade prompt assembly.
  *
  * Composes a comprehensive system prompt from multiple context sources:
- *   [Identity] → [Project Context] → [Repository Map] → [Project Memory]
- *   → [Custom Rules] → [Agentic Mode Guidelines] → [Available Tools]
+ *   [Identity] → [Working Directory] → [Project Context] → [Project Memory]
+ *   → [Repository Map] → [Custom Rules] → [Agentic Mode Guidelines] → [Response Format]
  *
  * Features:
  * - Priority-based token budget enforcement
@@ -11,10 +11,10 @@
  * - Configurable token limits per section
  *
  * Token budget priorities (highest = last to truncate):
- *   1. Identity + Tools (always included)
+ *   1. Identity + Tools (always included, never truncated)
  *   2. Memory (high priority — user/agent knowledge)
  *   3. Custom Rules (medium priority)
- *   4. Repo Map (truncated first — regenerable)
+ *   4. Repo Map (truncated first — regenerable via tool calls)
  *
  * Zero external dependencies.
  */
@@ -25,7 +25,7 @@
 const DEFAULT_TOKEN_BUDGETS = {
   /** Total combined token budget for the system prompt context */
   total: 4000,
-  /** Budget reserved for the identity block and tool guidelines (always included) */
+  /** Budget reserved for the identity block (always included) */
   identity: 600,
   /** Budget for the project context block (name, stack, git) */
   projectContext: 300,
@@ -40,6 +40,11 @@ const DEFAULT_TOKEN_BUDGETS = {
 };
 
 /**
+ * Length of the truncation marker appended when content is trimmed.
+ */
+const TRUNCATION_MARKER = "\n[...truncated]";
+
+/**
  * Estimate token count from text (~4 chars per token).
  * @param {string} text
  * @returns {number}
@@ -51,15 +56,20 @@ function estimateTokens(text) {
 
 /**
  * Truncate text to fit within a token budget.
+ * Accounts for the truncation marker in the budget so output never exceeds maxTokens.
+ *
  * @param {string} text
  * @param {number} maxTokens
  * @returns {string}
  */
 function truncateToTokens(text, maxTokens) {
   if (!text) return "";
+  if (maxTokens <= 0) return "";
   const maxChars = maxTokens * 4;
   if (text.length <= maxChars) return text;
-  return text.slice(0, maxChars) + "\n[...truncated]";
+  // Subtract marker length so total output stays within budget
+  const sliceEnd = Math.max(0, maxChars - TRUNCATION_MARKER.length);
+  return text.slice(0, sliceEnd) + TRUNCATION_MARKER;
 }
 
 /**
@@ -114,7 +124,9 @@ ${toolSummary}`;
  * Assembles all context sources into a single prompt with token budget enforcement.
  *
  * @param {object} options
- * @param {string} options.basePrompt - Base project context prompt (from ProjectContextService)
+ * @param {string} options.basePrompt - Project context ONLY (name, stack, git info) from
+ *   ProjectContextService.formatSystemPromptContext(). Do NOT include identity/persona text
+ *   here — the identity block is added automatically by this builder.
  * @param {string} options.toolSummary - Human-readable tool summary from ToolRegistry
  * @param {string} [options.cwd] - Working directory
  * @param {string} [options.repoMap] - Formatted repository map from RepoMapService
@@ -144,7 +156,7 @@ export function buildAgenticSystemPrompt({
     sections.push(`Working Directory: ${cwd}`);
   }
 
-  // [Project Context] — from ProjectContextService
+  // [Project Context] — from ProjectContextService (project metadata only, not identity)
   if (basePrompt) {
     const truncated = truncateToTokens(basePrompt, budgets.projectContext);
     sections.push(truncated);
@@ -154,42 +166,49 @@ export function buildAgenticSystemPrompt({
   const fixedTokens = estimateTokens(sections.join("\n\n"));
   const toolBlock = buildToolGuidelinesBlock(toolSummary || "");
   const toolTokens = estimateTokens(toolBlock);
-  const remainingBudget = Math.max(0, budgets.total - fixedTokens - toolTokens);
+  // Response format is a fixed-size block (~20 tokens)
+  const responseFormatBlock = `[Response Format]
+- Respond in clean markdown.
+- When showing code changes, describe what changed and why.
+- After completing a task, summarize what was done.`;
+  const responseTokens = estimateTokens(responseFormatBlock);
+  const remainingBudget = Math.max(0, budgets.total - fixedTokens - toolTokens - responseTokens);
 
-  // Allocate remaining budget: memory (priority 1) → rules (priority 2) → repo-map (priority 3)
+  // Allocate remaining budget by priority:
+  //   memory (priority 1) → rules (priority 2) → repo-map (priority 3, truncated first)
   let memoryBlock = "";
   let rulesBlock = "";
   let repoMapBlock = "";
   let budgetLeft = remainingBudget;
 
-  // Memory — high priority
+  // Memory — highest priority for dynamic context
   if (memory && memory.trim()) {
     const memoryBudget = Math.min(budgets.memory, budgetLeft);
     memoryBlock = truncateToTokens(memory.trim(), memoryBudget);
-    budgetLeft -= estimateTokens(memoryBlock);
+    budgetLeft = Math.max(0, budgetLeft - estimateTokens(memoryBlock));
   }
 
   // Custom Rules — medium priority
   if (customRules && customRules.trim()) {
     const rulesBudget = Math.min(budgets.customRules, budgetLeft);
     rulesBlock = truncateToTokens(customRules.trim(), rulesBudget);
-    budgetLeft -= estimateTokens(rulesBlock);
+    budgetLeft = Math.max(0, budgetLeft - estimateTokens(rulesBlock));
   }
 
-  // Repo Map — lowest priority (truncated first)
+  // Repo Map — lowest priority (truncated first, regenerable via tools)
   if (repoMap && repoMap.trim()) {
     const mapBudget = Math.min(budgets.repoMap, budgetLeft);
     repoMapBlock = truncateToTokens(repoMap.trim(), mapBudget);
-    budgetLeft -= estimateTokens(repoMapBlock);
+    budgetLeft = Math.max(0, budgetLeft - estimateTokens(repoMapBlock));
   }
 
-  // Assemble sections
-  if (repoMapBlock) {
-    sections.push(repoMapBlock);
-  }
-
+  // Assemble dynamic sections — memory before repo-map (higher priority = earlier in prompt)
   if (memoryBlock) {
     sections.push(`[Project Memory]\n${memoryBlock}`);
+  }
+
+  if (repoMapBlock) {
+    sections.push(repoMapBlock);
   }
 
   if (rulesBlock) {
@@ -199,11 +218,8 @@ export function buildAgenticSystemPrompt({
   // Tool guidelines — always included
   sections.push(toolBlock);
 
-  // Response format
-  sections.push(`[Response Format]
-- Respond in clean markdown.
-- When showing code changes, describe what changed and why.
-- After completing a task, summarize what was done.`);
+  // Response format — always included
+  sections.push(responseFormatBlock);
 
   return sections.join("\n\n");
 }

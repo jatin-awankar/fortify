@@ -59,6 +59,9 @@ export class MemoryService {
    * @returns {string} Absolute path to `.fortify/memory.md`
    */
   getMemoryPath(cwd) {
+    if (!cwd || typeof cwd !== "string") {
+      throw new Error("MemoryService requires a valid cwd (project root directory).");
+    }
     return path.join(cwd, ".fortify", MEMORY_FILENAME);
   }
 
@@ -78,8 +81,8 @@ export class MemoryService {
       if (error?.code === "ENOENT") {
         return "";
       }
-      // For any other error (permissions, etc.), return empty gracefully
-      return "";
+      // Propagate real errors (EACCES, EIO, etc.) — don't silently swallow them
+      throw error;
     }
   }
 
@@ -136,11 +139,10 @@ export class MemoryService {
     const memoryPath = this.getMemoryPath(cwd);
 
     try {
-      await this.fs.access(memoryPath);
       await this.fs.writeFile(memoryPath, "", "utf8");
     } catch (error) {
       if (error?.code === "ENOENT") {
-        return; // Nothing to clear
+        return; // Nothing to clear — file and/or directory doesn't exist
       }
       throw error;
     }
@@ -225,8 +227,10 @@ export class MemoryService {
 
     if (kept.length === 0) {
       // Even a single entry exceeds budget — hard truncate the last entry
+      // Subtract notice overhead so total output stays within budget
       const lastEntry = entries[entries.length - 1];
-      return truncationNotice + lastEntry.slice(0, maxTokens * 4);
+      const availableChars = Math.max(0, (maxTokens * 4) - truncationNotice.length);
+      return truncationNotice + lastEntry.slice(0, availableChars);
     }
 
     if (kept.length < entries.length) {
