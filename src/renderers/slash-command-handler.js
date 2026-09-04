@@ -343,6 +343,186 @@ function getBuiltinCommands() {
         stdout.write("\n");
       },
     },
+    {
+      name: "/undo",
+      description: "Undo the last agentic change (restore checkpoint)",
+      aliases: ["/rollback"],
+      handler: async (args, ctx) => {
+        const { renderer } = ctx;
+        const stdout = renderer.terminalUI?.stdout || process.stdout;
+        const chalk = renderer.terminalUI?.chalk;
+
+        // Use injected service or create a new one
+        let checkpointService = ctx.gitCheckpointService;
+        if (!checkpointService) {
+          const { GitCheckpointService } = await import("../services/git-checkpoint-service.js");
+          const { GitService } = await import("../services/git-service.js");
+          const cwd = ctx.projectContextService?.cwd || process.cwd();
+          const gitService = ctx.projectContextService?.gitService || new GitService({ cwd });
+          checkpointService = new GitCheckpointService({ gitService, cwd });
+        }
+
+        const cwd = ctx.projectContextService?.cwd || process.cwd();
+        const subcommand = args.trim().toLowerCase();
+
+        // /undo list — show all checkpoints
+        if (subcommand === "list") {
+          const checkpoints = await checkpointService.listCheckpoints({ cwd });
+          if (checkpoints.length === 0) {
+            if (renderer.messageRenderer) {
+              renderer.messageRenderer.renderInfo("No Fortify checkpoints found.");
+            } else {
+              renderer.terminalUI?.info("No Fortify checkpoints found.");
+            }
+            return;
+          }
+
+          stdout.write("\n");
+          stdout.write(`  ${chalk ? chalk.bold.cyan("Fortify Checkpoints") : "Fortify Checkpoints"} (${checkpoints.length})\n\n`);
+          for (const cp of checkpoints) {
+            const idx = chalk ? chalk.yellow(`[${cp.index}]`) : `[${cp.index}]`;
+            const ts = chalk ? chalk.dim(cp.timestamp) : cp.timestamp;
+            const label = chalk ? chalk.cyan(cp.label) : cp.label;
+            stdout.write(`  ${idx} ${ts}  ${label}\n`);
+          }
+          stdout.write(`\n  ${chalk ? chalk.dim("Use /undo <index> to restore a specific checkpoint.") : "Use /undo <index> to restore."}\n\n`);
+          return;
+        }
+
+        // /undo <N> — restore specific checkpoint
+        const specificIndex = parseInt(subcommand, 10);
+        const restoreOptions = { cwd };
+        if (!isNaN(specificIndex)) {
+          restoreOptions.index = specificIndex;
+        }
+
+        // Show what will be reverted
+        const diffSummary = await checkpointService.getDiffSummary({ cwd });
+
+        const result = await checkpointService.restoreCheckpoint(restoreOptions);
+
+        if (!result.restored) {
+          if (renderer.messageRenderer) {
+            renderer.messageRenderer.renderError(result.error || "Failed to restore checkpoint.");
+          } else {
+            renderer.terminalUI?.error(result.error || "Failed to restore checkpoint.");
+          }
+          return;
+        }
+
+        // Success
+        if (renderer.messageRenderer) {
+          renderer.messageRenderer.renderInfo("Checkpoint restored — changes reverted.");
+        } else {
+          renderer.terminalUI?.success("Checkpoint restored — changes reverted.");
+        }
+
+        if (diffSummary) {
+          stdout.write(`\n  ${chalk ? chalk.dim("Reverted changes:") : "Reverted changes:"}\n`);
+          const lines = diffSummary.split("\n");
+          for (const line of lines) {
+            stdout.write(`  ${chalk ? chalk.dim(line) : line}\n`);
+          }
+          stdout.write("\n");
+        }
+      },
+    },
+    {
+      name: "/diff",
+      description: "Show uncommitted changes from the current session",
+      aliases: [],
+      handler: async (args, ctx) => {
+        const { renderer } = ctx;
+        const stdout = renderer.terminalUI?.stdout || process.stdout;
+        const chalk = renderer.terminalUI?.chalk;
+
+        // Use injected service or create a new one
+        let checkpointService = ctx.gitCheckpointService;
+        if (!checkpointService) {
+          const { GitCheckpointService } = await import("../services/git-checkpoint-service.js");
+          const { GitService } = await import("../services/git-service.js");
+          const cwd = ctx.projectContextService?.cwd || process.cwd();
+          const gitService = ctx.projectContextService?.gitService || new GitService({ cwd });
+          checkpointService = new GitCheckpointService({ gitService, cwd });
+        }
+
+        const cwd = ctx.projectContextService?.cwd || process.cwd();
+        const trimmedArgs = args.trim();
+
+        // Check for --stat flag
+        if (trimmedArgs === "--stat") {
+          const summary = await checkpointService.getDiffSummary({ cwd });
+          if (!summary) {
+            if (renderer.messageRenderer) {
+              renderer.messageRenderer.renderInfo("No uncommitted changes.");
+            } else {
+              renderer.terminalUI?.info("No uncommitted changes.");
+            }
+            return;
+          }
+
+          stdout.write("\n");
+          stdout.write(`  ${chalk ? chalk.bold.cyan("Changes Summary") : "Changes Summary"}\n\n`);
+          const lines = summary.split("\n");
+          for (const line of lines) {
+            stdout.write(`  ${chalk ? chalk.dim(line) : line}\n`);
+          }
+          stdout.write("\n");
+          return;
+        }
+
+        // Check for uncommitted changes
+        const hasChanges = await checkpointService.hasUncommittedChanges({ cwd });
+        if (!hasChanges) {
+          if (renderer.messageRenderer) {
+            renderer.messageRenderer.renderInfo("No uncommitted changes.");
+          } else {
+            renderer.terminalUI?.info("No uncommitted changes.");
+          }
+          return;
+        }
+
+        // Get per-file diffs (optionally filtered by path)
+        const filePath = trimmedArgs || undefined;
+        const fileDiffs = await checkpointService.getPerFileDiffs({ cwd, filePath });
+
+        if (fileDiffs.length === 0) {
+          if (filePath) {
+            if (renderer.messageRenderer) {
+              renderer.messageRenderer.renderInfo(`No changes found for: ${filePath}`);
+            } else {
+              renderer.terminalUI?.info(`No changes found for: ${filePath}`);
+            }
+          } else {
+            if (renderer.messageRenderer) {
+              renderer.messageRenderer.renderInfo("No diff output available.");
+            } else {
+              renderer.terminalUI?.info("No diff output available.");
+            }
+          }
+          return;
+        }
+
+        // Render each file diff using DiffRenderer if available, otherwise plain output
+        const { DiffRenderer } = await import("./diff-renderer.js");
+        const diffRenderer = new DiffRenderer({ terminalUI: renderer.terminalUI });
+
+        stdout.write("\n");
+        for (const fd of fileDiffs) {
+          diffRenderer.renderDiffCard(fd.file, fd.diff, {
+            additions: fd.additions,
+            deletions: fd.deletions,
+          });
+        }
+
+        // Show totals
+        const totalAdditions = fileDiffs.reduce((sum, f) => sum + f.additions, 0);
+        const totalDeletions = fileDiffs.reduce((sum, f) => sum + f.deletions, 0);
+        const addStr = chalk ? chalk.green(`+${totalAdditions}`) : `+${totalAdditions}`;
+        const delStr = chalk ? chalk.red(`-${totalDeletions}`) : `-${totalDeletions}`;
+        stdout.write(`\n  ${chalk ? chalk.bold(`${fileDiffs.length} file${fileDiffs.length === 1 ? "" : "s"} changed`) : `${fileDiffs.length} file(s) changed`}  ${addStr}  ${delStr}\n\n`);
+      },
+    },
   ];
 }
 

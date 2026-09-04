@@ -22,7 +22,9 @@ const DEFAULT_ALLOWED_PREFIXES = [
   "jest", "vitest", "mocha", "playwright", "cypress",
   // Git (read-only and safe operations)
   "git status", "git diff", "git log", "git branch", "git show",
-  "git stash list", "git remote", "git tag",
+  "git stash list", "git stash push", "git stash pop", "git stash drop",
+  "git add", "git checkout", "git clean",
+  "git remote", "git tag",
   // Python
   "python", "python3", "pip", "pip3", "pytest", "ruff", "mypy",
   // Rust

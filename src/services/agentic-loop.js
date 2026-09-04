@@ -2,6 +2,12 @@ import { ToolRegistry } from "./tool-registry.js";
 import { ToolExecutor } from "./tool-executor.js";
 
 /**
+ * Tool names that mutate the filesystem.
+ * Used by the self-heal service to decide when to run tests.
+ */
+export const MUTATION_TOOLS = ["write_file", "edit_file"];
+
+/**
  * Maximum number of agentic loop iterations before forcibly stopping.
  * Prevents infinite tool-call loops.
  */
@@ -28,6 +34,8 @@ export class AgenticLoop {
     onIteration,
     onToolResults,
     onComplete,
+    onBeforeToolExecution,
+    onAfterIteration,
   } = {}) {
     this.registry = toolRegistry || new ToolRegistry();
     this.executor = toolExecutor || new ToolExecutor({ toolRegistry: this.registry });
@@ -37,6 +45,10 @@ export class AgenticLoop {
     this.onIteration = onIteration || (() => {});
     this.onToolResults = onToolResults || (() => {});
     this.onComplete = onComplete || (() => {});
+    /** Called before each tool is executed — receives the tool call object. */
+    this.onBeforeToolExecution = onBeforeToolExecution || (() => {});
+    /** Called after each complete iteration — receives { iteration, toolResults, hasMutations }. */
+    this.onAfterIteration = onAfterIteration || (() => {});
   }
 
   /**
@@ -157,11 +169,22 @@ export class AgenticLoop {
         };
       });
 
+      // Notify before each tool execution
+      for (const tc of toolCalls) {
+        this.onBeforeToolExecution(tc);
+      }
+
       const results = await this.executor.executeAll(toolCalls, context);
       allToolResults.push(...results);
 
       // Notify hook
       this.onToolResults(results, iterations);
+
+      // Check if any mutations occurred in this iteration
+      const hasMutations = toolCalls.some((tc) => MUTATION_TOOLS.includes(tc.name));
+
+      // Notify after iteration completes
+      this.onAfterIteration({ iteration: iterations, toolResults: results, hasMutations });
 
       // Append tool results to conversation (for next LLM call)
       for (let i = 0; i < results.length; i++) {
