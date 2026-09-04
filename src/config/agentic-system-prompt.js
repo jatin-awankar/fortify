@@ -115,6 +115,14 @@ You have access to file system and command execution tools. Use them proactively
 - Use for: running tests, installing packages, building, linting, git operations.
 - Dangerous commands (rm -rf, format, shutdown) are blocked automatically.
 
+## Safety Net
+- A git checkpoint is created before each agentic turn. Your changes can be rolled back automatically.
+- If a test command is configured, tests run automatically after you modify files (write_file or edit_file).
+- If tests fail, you will receive the test output and can attempt a fix (up to 3 retries).
+- After exhausting retries, your changes are automatically rolled back to the pre-edit checkpoint.
+- Work incrementally: make small, targeted changes → let tests verify → proceed to the next change.
+- The user can run /undo to manually revert your changes, and /diff to see what you changed.
+
 ${toolSummary}`;
 }
 

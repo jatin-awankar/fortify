@@ -20,6 +20,9 @@ import { createCommandAllowlist } from "../config/command-allowlist.js";
 import { buildAgenticSystemPrompt } from "../config/agentic-system-prompt.js";
 import { RepoMapService } from "./repo-map-service.js";
 import { MemoryService } from "./memory-service.js";
+import { GitCheckpointService } from "./git-checkpoint-service.js";
+import { TestRunnerService } from "./test-runner-service.js";
+import { SelfHealService } from "./self-heal-service.js";
 import { loadConfig } from "../config/index.js";
 import { stat, readFile, readdir, open } from "node:fs/promises";
 import path from "node:path";
@@ -50,6 +53,9 @@ export class ChatService {
     toolRegistry,
     toolExecutor,
     agenticLoop,
+    gitCheckpointService,
+    testRunnerService,
+    selfHealService,
   } = {}) {
     this.openAIService = openAIService;
     this.providerFactory = providerFactory;
@@ -83,6 +89,15 @@ export class ChatService {
       toolRegistry: this.toolRegistry,
       toolExecutor: this.toolExecutor,
     });
+
+    // Phase 3: Git safety & self-healing
+    this.gitCheckpointService = gitCheckpointService || new GitCheckpointService({
+      gitService: this.projectContextService.gitService,
+      cwd: this.projectContextService.cwd,
+    });
+    this.testRunnerService = testRunnerService || new TestRunnerService();
+    this.selfHealService = selfHealService || null; // Lazy-initialized in startInteractiveChat
+    this._detectedTestCommand = null; // Cached after first detection
   }
 
   async resolveSessionId(sessionId) {
@@ -186,6 +201,49 @@ export class ChatService {
     this.renderer.terminalUI.success(`Loaded project context: ${contextSummary.name} (${contextSummary.stack.join(", ")})`);
     if (isAgenticMode) {
       this.renderer.terminalUI.info("Agentic mode active — tool use enabled.");
+
+      // Auto-detect test command for self-healing
+      try {
+        this._detectedTestCommand = await this.testRunnerService.detectTestCommand({
+          cwd: this.projectContextService.cwd,
+        });
+        if (this._detectedTestCommand) {
+          this.renderer.terminalUI.success(`Detected test command: ${this._detectedTestCommand}`);
+        }
+      } catch {
+        this._detectedTestCommand = null;
+      }
+
+      // Initialize self-heal service with render hooks
+      if (!this.selfHealService) {
+        this.selfHealService = new SelfHealService({
+          gitCheckpointService: this.gitCheckpointService,
+          testRunnerService: this.testRunnerService,
+          onCheckpointCreated: () => {
+            this.renderer.terminalUI?.info?.("Git checkpoint created.");
+          },
+          onTestStart: (cmd) => {
+            this.renderer.terminalUI?.info?.(`Running tests: ${cmd}`);
+          },
+          onTestResult: (result) => {
+            if (result.passed) {
+              this.renderer.terminalUI?.success?.("Tests passed ✓");
+            } else {
+              this.renderer.terminalUI?.warning?.("Tests failed ✗");
+            }
+          },
+          onRetry: (attempt, max) => {
+            this.renderer.terminalUI?.warning?.(
+              `Self-heal: attempting fix (${attempt}/${max})...`
+            );
+          },
+          onRollback: () => {
+            this.renderer.terminalUI?.warning?.(
+              "Self-heal: max retries exhausted — rolled back to checkpoint."
+            );
+          },
+        });
+      }
     }
 
     const readlineInterface = createInterface({
@@ -259,6 +317,8 @@ export class ChatService {
             toolRegistry: this.toolRegistry,
             requestExit: () => { exitRequested = true; },
             onModelChange: (newModel) => { currentModel = newModel; },
+            gitCheckpointService: this.gitCheckpointService,
+            projectContextService: this.projectContextService,
           });
           if (handled) {
             if (exitRequested) break;
@@ -384,26 +444,59 @@ export class ChatService {
 
     const providerService = await this.providerFactory.getProvider(provider || "");
     const toolSchemas = this.getToolSchemas();
+    const cwd = this.projectContextService.cwd;
 
-    const result = await this.agenticLoop.run({
+    const sendToLLM = async (messages, tools) => {
+      const response = await providerService.createResponse({
+        input: messages,
+        model: model && model !== "default" ? model : undefined,
+        tools: tools && tools.length > 0 ? tools : undefined,
+        signal,
+      });
+      return AgenticLoop.parseResponse(response);
+    };
+
+    const runOptions = {
       messages: responseInput,
-      sendToLLM: async (messages, tools) => {
-        const response = await providerService.createResponse({
-          input: messages,
-          model: model && model !== "default" ? model : undefined,
-          tools: tools && tools.length > 0 ? tools : undefined,
-          signal,
-        });
-        return AgenticLoop.parseResponse(response);
-      },
+      sendToLLM,
       context: {
         sessionId,
-        cwd: this.projectContextService.cwd,
+        cwd,
         commandAllowlist: this.commandAllowlist,
         fortifyIgnore: this._fortifyIgnore,
       },
       signal,
-    });
+    };
+
+    // Use self-heal service if available and test command is detected
+    let result;
+    if (this.selfHealService && this._detectedTestCommand) {
+      const selfHealResult = await this.selfHealService.run({
+        agenticLoop: this.agenticLoop,
+        runOptions,
+        cwd,
+        testCommand: this._detectedTestCommand,
+      });
+
+      result = selfHealResult;
+
+      // Log self-heal summary
+      if (selfHealResult.selfHeal) {
+        const sh = selfHealResult.selfHeal;
+        if (sh.selfHealAttempts > 0 && sh.testsPassed) {
+          this.renderer.terminalUI?.success?.(
+            `Self-healed in ${sh.selfHealAttempts} attempt${sh.selfHealAttempts === 1 ? "" : "s"}.`
+          );
+        }
+        if (sh.rolledBack) {
+          this.renderer.terminalUI?.warning?.(
+            "Changes rolled back to pre-edit checkpoint."
+          );
+        }
+      }
+    } else {
+      result = await this.agenticLoop.run(runOptions);
+    }
 
     // Persist the final assistant response
     if (result.text) {
