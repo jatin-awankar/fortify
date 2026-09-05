@@ -4,6 +4,21 @@ import { PermissionPrompt, PERMISSION_RESPONSE } from "../renderers/permission-p
 import { createAnsiStyle } from "../renderers/ansi-style.js";
 
 /**
+ * Default per-tool execution timeout in milliseconds.
+ * Commands get more time since they run arbitrary processes.
+ */
+const DEFAULT_TOOL_TIMEOUTS = {
+  execute_command: 30_000,
+  read_file: 10_000,
+  write_file: 10_000,
+  edit_file: 10_000,
+  search_files: 15_000,
+  list_directory: 10_000,
+};
+
+const DEFAULT_TIMEOUT = 10_000;
+
+/**
  * Tool execution result.
  * @typedef {{ success: boolean, output: string, error?: string, toolName: string, durationMs: number }} ToolResult
  */
@@ -115,8 +130,9 @@ export class ToolExecutor {
     // 2. Build the display title
     const displayTitle = this.#buildDisplayTitle(name, params);
 
-    // 3. Check permission if required
-    if (toolDef.requiresPermission) {
+    // 3. Check permission if required (skip in auto-approve mode)
+    const autoApprove = context.autoApprove === true;
+    if (toolDef.requiresPermission && !autoApprove) {
       let permResult = await this.permissionPrompt.requestPermission({
         toolType: name,
         description: `Fortify wants to ${toolDef.description.toLowerCase()}`,
@@ -180,11 +196,28 @@ export class ToolExecutor {
     }
 
     try {
-      const result = await handler(params, {
+      // Per-tool execution timeout
+      const toolTimeoutMs = context.toolTimeoutMs?.[name]
+        ?? DEFAULT_TOOL_TIMEOUTS[name]
+        ?? DEFAULT_TIMEOUT;
+
+      const handlerPromise = handler(params, {
         ...context,
         toolDef,
         toolCallId: id,
       });
+
+      let result;
+      if (toolTimeoutMs > 0) {
+        result = await Promise.race([
+          handlerPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error(`Tool '${name}' timed out after ${toolTimeoutMs}ms`)), toolTimeoutMs)
+          ),
+        ]);
+      } else {
+        result = await handlerPromise;
+      }
 
       const output = typeof result === "string" ? result : (result?.output || "");
       cardController.succeed(displayTitle, this.#truncateOutput(output));
