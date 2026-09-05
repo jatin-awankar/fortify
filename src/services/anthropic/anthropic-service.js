@@ -240,6 +240,7 @@ export class AnthropicService {
   /**
    * Create a response with tool-use support (for agentic loop).
    * Converts between OpenAI and Anthropic tool formats.
+   * Includes model fallback chain for resilience.
    */
   async createResponse({ input, model, tools, signal }) {
     const config = await this.configLoader();
@@ -251,8 +252,46 @@ export class AnthropicService {
       );
     }
 
-    const selectedModel = model || config?.modelPreferences?.anthropicModel || DEFAULT_ANTHROPIC_MODEL;
+    const primaryModel = model || config?.modelPreferences?.anthropicModel || DEFAULT_ANTHROPIC_MODEL;
+    const discoveredModels = await this.fetchAvailableModels(apiKey);
+    const modelChain = Array.from(new Set([
+      primaryModel,
+      ...discoveredModels,
+      ...STATIC_ANTHROPIC_FALLBACKS,
+    ]));
 
+    let lastError;
+    for (const selectedModel of modelChain) {
+      try {
+        return await this.#createResponseForModel({
+          input,
+          selectedModel,
+          tools,
+          apiKey,
+          signal,
+        });
+      } catch (err) {
+        lastError = err;
+        const msg = (err?.message || "").toLowerCase();
+        const shouldFallback = msg.includes("429") || msg.includes("rate_limit") ||
+          msg.includes("not_found") || msg.includes("overloaded") ||
+          msg.includes("529");
+
+        if (!shouldFallback) {
+          throw err;
+        }
+        // Try next model in chain
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
+   * Internal: create a tool-use response for a specific model.
+   * @private
+   */
+  async #createResponseForModel({ input, selectedModel, tools, apiKey, signal }) {
     const messages = [];
     let systemPrompt = "";
 
@@ -261,25 +300,48 @@ export class AnthropicService {
         if (msg.role === "system") {
           systemPrompt = systemPrompt ? `${systemPrompt}\n\n${msg.content}` : msg.content;
         } else if (msg.role === "tool") {
-          messages.push({
-            role: "user",
-            content: [{
-              type: "tool_result",
-              tool_use_id: msg.tool_call_id,
-              content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
-            }],
-          });
+          const toolResultBlock = {
+            type: "tool_result",
+            tool_use_id: msg.tool_call_id,
+            content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+          };
+
+          // Merge consecutive tool_result messages into a single user message
+          // Anthropic requires alternating user/assistant roles
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg && lastMsg.role === "user" && Array.isArray(lastMsg.content) &&
+              lastMsg.content.length > 0 && lastMsg.content[0]?.type === "tool_result") {
+            lastMsg.content.push(toolResultBlock);
+          } else {
+            messages.push({
+              role: "user",
+              content: [toolResultBlock],
+            });
+          }
         } else if (msg.role === "assistant" && msg.tool_calls) {
           const content = [];
-          if (msg.content) content.push({ type: "text", text: msg.content });
+          // Guard against empty text blocks — Anthropic API rejects { type: "text", text: "" }
+          if (msg.content && typeof msg.content === "string" && msg.content.trim()) {
+            content.push({ type: "text", text: msg.content });
+          }
           for (const tc of msg.tool_calls) {
+            let parsedInput = {};
+            if (typeof tc.function?.arguments === "string") {
+              try {
+                parsedInput = JSON.parse(tc.function.arguments);
+              } catch {
+                // If arguments is malformed JSON, pass as-is in a wrapper
+                parsedInput = { _raw: tc.function.arguments };
+              }
+            } else {
+              parsedInput = tc.function?.arguments || tc.arguments || {};
+            }
+
             content.push({
               type: "tool_use",
               id: tc.id,
               name: tc.function?.name || tc.name,
-              input: typeof tc.function?.arguments === "string"
-                ? JSON.parse(tc.function.arguments)
-                : (tc.function?.arguments || tc.arguments || {}),
+              input: parsedInput,
             });
           }
           messages.push({ role: "assistant", content });
