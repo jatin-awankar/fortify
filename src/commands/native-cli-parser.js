@@ -78,6 +78,8 @@ Commands:
   commit [options]         Draft and review commit messages
   summarize [options] <path> Summarize code, diffs, or project activity
   chat [options]           Start an interactive assistant chat session
+  run <prompt>             Run a single agentic task (headless, CI/CD-friendly)
+  doctor                   Check Fortify setup and diagnose issues
   history [options]        View or clear saved chat session history
   help [command]           display help for command
 \n`);
@@ -123,13 +125,15 @@ export async function parseAndRunNativeCli(argv = process.argv, commandService =
       show: { type: "string" },
       clear: { type: "boolean" },
       name: { type: "string", short: "n" },
-      stack: { type: "string" }
+      stack: { type: "string" },
+      timeout: { type: "string" },
+      "max-iterations": { type: "string" },
     },
     allowPositionals: true,
     strict: false
   });
 
-  const KNOWN_COMMANDS = new Set(["auth", "init", "plugin", "config", "explain", "commit", "summarize", "chat", "history", "help"]);
+  const KNOWN_COMMANDS = new Set(["auth", "init", "plugin", "config", "explain", "commit", "summarize", "chat", "history", "run", "doctor", "help"]);
   const cmdIdx = positionals.findIndex((p) => KNOWN_COMMANDS.has(p));
   const commandName = cmdIdx >= 0 ? positionals[cmdIdx] : (positionals[0] || "");
   const commandArgs = cmdIdx >= 0 ? positionals.slice(cmdIdx + 1) : positionals.slice(1);
@@ -251,6 +255,29 @@ export async function parseAndRunNativeCli(argv = process.argv, commandService =
       show: showTarget,
       clear: isClear
     });
+    return;
+  }
+
+  if (commandName === "run") {
+    const prompt = commandArgs.join(" ").trim();
+    if (!prompt) {
+      console.error(`error: missing required argument 'prompt'. Usage: ${appMetadata.cliName} run "<prompt>"`);
+      process.exitCode = 1;
+      return;
+    }
+    await commandService.run({
+      prompt,
+      provider: values.provider,
+      model: values.model,
+      timeout: values.timeout ? parseInt(values.timeout, 10) : 0,
+      maxIterations: values["max-iterations"] ? parseInt(values["max-iterations"], 10) : 25,
+      yes: true, // Always auto-approve in headless mode
+    });
+    return;
+  }
+
+  if (commandName === "doctor") {
+    await commandService.doctor();
     return;
   }
 

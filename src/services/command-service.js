@@ -7,6 +7,7 @@ import { HistoryService } from "./history-service.js";
 import { SummarizeService } from "./summarize-service.js";
 import { InitService } from "./init-service.js";
 import { PluginService } from "./plugin-service.js";
+import { HeadlessChatService } from "./headless-chat-service.js";
 import { normalizeErrorForOutput } from "../utils/error-normalizer.js";
 import { USER_CANCELLED_EXIT_CODE } from "../utils/operation-cancellation.js";
 import { getRuntimeOptions } from "../utils/runtime-options.js";
@@ -22,6 +23,7 @@ export class CommandService {
     summarizeService = new SummarizeService(),
     initService = new InitService(),
     pluginService = new PluginService(),
+    headlessChatService,
   } = {}) {
     this.authService = authService;
     this.chatService = chatService;
@@ -32,6 +34,7 @@ export class CommandService {
     this.summarizeService = summarizeService;
     this.initService = initService;
     this.pluginService = pluginService;
+    this.headlessChatService = headlessChatService || new HeadlessChatService();
   }
 
   async explain(input) {
@@ -94,6 +97,32 @@ export class CommandService {
       provider: input?.provider,
       model: input?.model,
     });
+  }
+
+  async run(input) {
+    const result = await this.headlessChatService.run({
+      prompt: input?.prompt,
+      provider: input?.provider ?? "",
+      model: input?.model ?? "",
+      timeout: input?.timeout ?? 0,
+      maxIterations: input?.maxIterations ?? 25,
+    });
+
+    if (getRuntimeOptions().json) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+    } else if (result.text) {
+      process.stdout.write(`${result.text}\n`);
+    }
+
+    this.#completeResult(result);
+  }
+
+  async doctor() {
+    // Dynamic import to avoid loading doctor-service at startup
+    const { DoctorService } = await import("./doctor-service.js");
+    const doctorService = new DoctorService();
+    const result = await doctorService.runDiagnostics();
+    this.#completeResult(result);
   }
 
   async history(input) {
