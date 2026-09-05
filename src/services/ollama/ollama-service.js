@@ -172,14 +172,45 @@ export class OllamaService {
   /**
    * Create a response with tool-use support (for agentic loop).
    * Uses Ollama's native tool calling support.
+   * Includes model fallback chain for resilience.
    */
   async createResponse({ input, model, tools, signal }) {
     const config = await this.configLoader();
     const endpoint = config?.endpoints?.ollama || DEFAULT_OLLAMA_ENDPOINT;
 
     const installedModels = await this.fetchInstalledModels(endpoint);
-    const selectedModel = model || config?.modelPreferences?.ollamaModel || (installedModels[0] || DEFAULT_OLLAMA_MODEL);
+    const primaryModel = model || config?.modelPreferences?.ollamaModel || (installedModels[0] || DEFAULT_OLLAMA_MODEL);
 
+    const modelChain = Array.from(new Set([primaryModel, ...installedModels, DEFAULT_OLLAMA_MODEL]));
+
+    let lastError;
+    for (const selectedModel of modelChain) {
+      try {
+        return await this.#createResponseForModel({
+          input,
+          selectedModel,
+          tools,
+          endpoint,
+          signal,
+        });
+      } catch (err) {
+        lastError = err;
+        // Only fallback on model-not-found errors
+        if (!err.message?.includes("not found") && !err.message?.includes("404")) {
+          throw err;
+        }
+        // Try next installed model
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
+   * Internal: create a tool-use response for a specific model.
+   * @private
+   */
+  async #createResponseForModel({ input, selectedModel, tools, endpoint, signal }) {
     const messages = [];
     if (Array.isArray(input)) {
       for (const msg of input) {
@@ -197,7 +228,9 @@ export class OllamaService {
               type: "function",
               function: {
                 name: tc.function?.name || tc.name,
-                arguments: tc.function?.arguments || JSON.stringify(tc.arguments || {}),
+                arguments: typeof tc.function?.arguments === "string"
+                  ? tc.function.arguments
+                  : JSON.stringify(tc.function?.arguments || tc.arguments || {}),
               },
             })),
           });
@@ -221,12 +254,17 @@ export class OllamaService {
       bodyPayload.tools = tools;
     }
 
-    const response = await this.fetchFn(`${endpoint}/api/chat`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(bodyPayload),
-      signal,
-    });
+    let response;
+    try {
+      response = await this.fetchFn(`${endpoint}/api/chat`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(bodyPayload),
+        signal,
+      });
+    } catch (err) {
+      throw new Error(`Failed to connect to Ollama server at ${endpoint}. Is Ollama running? (${err.message})`);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
