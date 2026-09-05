@@ -160,6 +160,20 @@ export class OpenAIService {
           { signal },
         );
 
+        // Guard against malformed responses — ensure consistent shape for agentic loop
+        if (!response?.choices?.length || !response.choices[0]?.message) {
+          return {
+            choices: [{
+              message: {
+                role: "assistant",
+                content: response?.choices?.[0]?.message?.content ?? null,
+                tool_calls: undefined,
+              },
+              finish_reason: "stop",
+            }],
+          };
+        }
+
         return response;
       },
       { model },
