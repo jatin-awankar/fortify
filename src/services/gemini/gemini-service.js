@@ -266,8 +266,34 @@ export class GeminiService {
   }
 
   /**
+   * Build a mapping from tool_call_id → tool name from an array of messages.
+   * Used to correlate tool results with their originating function calls,
+   * which Gemini requires for functionResponse.
+   * @param {object[]} messages - OpenAI-format messages
+   * @returns {Map<string, string>}
+   */
+  #buildToolCallIdMap(messages) {
+    const map = new Map();
+    if (!Array.isArray(messages)) return map;
+
+    for (const msg of messages) {
+      if (msg.role === "assistant" && Array.isArray(msg.tool_calls)) {
+        for (const tc of msg.tool_calls) {
+          const id = tc.id;
+          const name = tc.function?.name || tc.name;
+          if (id && name) {
+            map.set(id, name);
+          }
+        }
+      }
+    }
+    return map;
+  }
+
+  /**
    * Create a response with tool-use support (for agentic loop).
    * Converts between OpenAI and Gemini function-calling formats.
+   * Includes model fallback chain for resilience.
    */
   async createResponse({ input, model, tools, signal }) {
     const config = await this.configLoader();
@@ -277,26 +303,82 @@ export class GeminiService {
       throw new GeminiConfigurationError("Google Gemini API key is missing.");
     }
 
-    const selectedModel = model || config?.modelPreferences?.geminiModel || DEFAULT_GEMINI_MODEL;
+    const primaryModel = model || config?.modelPreferences?.geminiModel || DEFAULT_GEMINI_MODEL;
+    const discoveredModels = await this.fetchAvailableModels(apiKey);
+    const modelChain = Array.from(new Set([
+      primaryModel,
+      ...discoveredModels,
+      ...STATIC_FALLBACK_MODELS,
+    ]));
+
+    let lastError;
+    for (const selectedModel of modelChain) {
+      try {
+        return await this.#createResponseForModel({
+          input,
+          selectedModel,
+          tools,
+          apiKey,
+          signal,
+        });
+      } catch (err) {
+        lastError = err;
+        const msg = (err?.message || "").toLowerCase();
+        const shouldFallback = msg.includes("429") || msg.includes("404") ||
+          msg.includes("503") || msg.includes("quota") ||
+          msg.includes("resource_exhausted") || msg.includes("not_found") ||
+          msg.includes("unavailable") || msg.includes("overloaded");
+
+        if (!shouldFallback) {
+          throw err;
+        }
+        // Try next model in chain
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
+   * Internal: create a tool-use response for a specific model.
+   * @private
+   */
+  async #createResponseForModel({ input, selectedModel, tools, apiKey, signal }) {
+    // Build tool_call_id → name mapping for functionResponse correlation
+    const toolCallIdMap = this.#buildToolCallIdMap(input);
 
     const contents = [];
     let systemText = "";
 
     if (Array.isArray(input)) {
-      for (const msg of input) {
-        if (msg.role === "system") {
-          systemText = systemText ? `${systemText}\n\n${msg.content}` : msg.content;
-        } else if (msg.role === "tool") {
+      // Collect consecutive tool results to batch into a single function message
+      let pendingToolParts = [];
+
+      const flushToolParts = () => {
+        if (pendingToolParts.length > 0) {
           contents.push({
             role: "function",
-            parts: [{
-              functionResponse: {
-                name: msg.name || "tool_result",
-                response: { content: msg.content },
-              },
-            }],
+            parts: [...pendingToolParts],
+          });
+          pendingToolParts = [];
+        }
+      };
+
+      for (const msg of input) {
+        if (msg.role === "system") {
+          flushToolParts();
+          systemText = systemText ? `${systemText}\n\n${msg.content}` : msg.content;
+        } else if (msg.role === "tool") {
+          // Resolve the tool name from the tool_call_id via our mapping
+          const resolvedName = toolCallIdMap.get(msg.tool_call_id) || msg.name || "tool_result";
+          pendingToolParts.push({
+            functionResponse: {
+              name: resolvedName,
+              response: { content: msg.content },
+            },
           });
         } else if (msg.role === "assistant" && msg.tool_calls) {
+          flushToolParts();
           const parts = [];
           if (msg.content) parts.push({ text: msg.content });
           for (const tc of msg.tool_calls) {
@@ -311,15 +393,19 @@ export class GeminiService {
           }
           contents.push({ role: "model", parts });
         } else {
+          flushToolParts();
           const role = msg.role === "assistant" ? "model" : "user";
           const lastMsg = contents[contents.length - 1];
-          if (lastMsg && lastMsg.role === role) {
+          if (lastMsg && lastMsg.role === role && typeof lastMsg.parts?.[0]?.text === "string") {
             lastMsg.parts[0].text = `${lastMsg.parts[0].text}\n\n${msg.content}`;
           } else {
             contents.push({ role, parts: [{ text: msg.content }] });
           }
         }
       }
+
+      // Flush any remaining tool parts
+      flushToolParts();
     }
 
     if (contents.length > 0 && contents[0].role !== "user") {
@@ -363,6 +449,13 @@ export class GeminiService {
 
     const data = await response.json();
     const candidate = data?.candidates?.[0];
+
+    // Handle safety blocks and content filters
+    const finishReason = candidate?.finishReason;
+    if (finishReason === "SAFETY" || finishReason === "RECITATION" || finishReason === "BLOCKED") {
+      throw new Error(`Google Gemini API blocked the response due to content filter (${finishReason}).`);
+    }
+
     const parts = candidate?.content?.parts || [];
 
     const textParts = parts.filter((p) => p.text);
