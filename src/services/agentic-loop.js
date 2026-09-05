@@ -14,6 +14,39 @@ export const MUTATION_TOOLS = ["write_file", "edit_file"];
 const MAX_ITERATIONS = 25;
 
 /**
+ * Default token budget (approximate). Uses ~4 chars per token heuristic.
+ * 0 = unlimited (rely on max iterations only).
+ */
+const DEFAULT_TOKEN_BUDGET = 0;
+
+/**
+ * Characters-per-token approximation for budget tracking.
+ */
+const CHARS_PER_TOKEN = 4;
+
+/**
+ * Estimate token count from text using character-based heuristic.
+ * @param {string} text
+ * @returns {number}
+ */
+function estimateTokens(text) {
+  if (!text || typeof text !== "string") return 0;
+  return Math.ceil(text.length / CHARS_PER_TOKEN);
+}
+
+/**
+ * Format a tool error for sending back to the LLM.
+ * Provides structured context so the LLM can self-correct.
+ * @param {object} result - Tool execution result
+ * @param {string} toolName - Name of the tool that errored
+ * @returns {string}
+ */
+function formatToolError(result, toolName) {
+  const error = result.error || "Unknown error";
+  return `[Tool Error] ${toolName} failed: ${error}\n\nPlease check the arguments and try again, or use a different approach.`;
+}
+
+/**
  * Agentic loop controller.
  *
  * Orchestrates the multi-turn tool-use cycle:
@@ -31,15 +64,21 @@ export class AgenticLoop {
     toolRegistry,
     toolExecutor,
     maxIterations = MAX_ITERATIONS,
+    tokenBudget = DEFAULT_TOKEN_BUDGET,
+    timeoutMs = 0,
     onIteration,
     onToolResults,
     onComplete,
     onBeforeToolExecution,
     onAfterIteration,
+    onTokenBudgetExceeded,
+    onTimeout,
   } = {}) {
     this.registry = toolRegistry || new ToolRegistry();
     this.executor = toolExecutor || new ToolExecutor({ toolRegistry: this.registry });
     this.maxIterations = maxIterations;
+    this.tokenBudget = tokenBudget;
+    this.timeoutMs = timeoutMs;
 
     // Lifecycle hooks (optional)
     this.onIteration = onIteration || (() => {});
@@ -49,6 +88,10 @@ export class AgenticLoop {
     this.onBeforeToolExecution = onBeforeToolExecution || (() => {});
     /** Called after each complete iteration — receives { iteration, toolResults, hasMutations }. */
     this.onAfterIteration = onAfterIteration || (() => {});
+    /** Called when token budget is exceeded. */
+    this.onTokenBudgetExceeded = onTokenBudgetExceeded || (() => {});
+    /** Called when wall-clock timeout is exceeded. */
+    this.onTimeout = onTimeout || (() => {});
   }
 
   /**
@@ -61,16 +104,27 @@ export class AgenticLoop {
    * @param {AbortSignal} [options.signal] - Abort signal for cancellation
    * @returns {Promise<AgenticLoopResult>}
    *
-   * @typedef {{ text: string, toolResults: ToolResult[], iterations: number, aborted: boolean }} AgenticLoopResult
+   * @typedef {{ text: string, toolResults: ToolResult[], iterations: number, aborted: boolean, tokensUsed: number }} AgenticLoopResult
    */
   async run({ messages, sendToLLM, context = {}, signal } = {}) {
     const toolSchemas = this.registry.toFunctionCallingSchema();
     const allToolResults = [];
     let iterations = 0;
     let finalText = "";
+    let tokensUsed = 0;
+
+    // Wall-clock timeout tracking
+    const startTime = Date.now();
 
     // Copy messages to avoid mutating the original
     const conversationMessages = [...messages];
+
+    // Estimate initial token usage from existing messages
+    for (const msg of conversationMessages) {
+      if (typeof msg.content === "string") {
+        tokensUsed += estimateTokens(msg.content);
+      }
+    }
 
     while (iterations < this.maxIterations) {
       // Check for abort
@@ -85,6 +139,43 @@ export class AgenticLoop {
           toolResults: allToolResults,
           iterations,
           aborted: true,
+          tokensUsed,
+        };
+      }
+
+      // Check wall-clock timeout
+      if (this.timeoutMs > 0 && (Date.now() - startTime) >= this.timeoutMs) {
+        finalText = `[Agentic loop timed out after ${Math.round(this.timeoutMs / 1000)}s]`;
+        this.onTimeout({ timeoutMs: this.timeoutMs, iterations, tokensUsed });
+        this.onComplete({
+          text: finalText,
+          toolResults: allToolResults,
+          iterations,
+        });
+        return {
+          text: finalText,
+          toolResults: allToolResults,
+          iterations,
+          aborted: false,
+          tokensUsed,
+        };
+      }
+
+      // Check token budget
+      if (this.tokenBudget > 0 && tokensUsed >= this.tokenBudget) {
+        finalText = `[Agentic loop stopped: token budget exceeded (${tokensUsed} tokens used, budget: ${this.tokenBudget})]`;
+        this.onTokenBudgetExceeded({ tokensUsed, budget: this.tokenBudget, iterations });
+        this.onComplete({
+          text: finalText,
+          toolResults: allToolResults,
+          iterations,
+        });
+        return {
+          text: finalText,
+          toolResults: allToolResults,
+          iterations,
+          aborted: false,
+          tokensUsed,
         };
       }
 
@@ -107,6 +198,7 @@ export class AgenticLoop {
             toolResults: allToolResults,
             iterations,
             aborted: true,
+            tokensUsed,
           };
         }
 
@@ -122,7 +214,13 @@ export class AgenticLoop {
           toolResults: allToolResults,
           iterations,
           aborted: false,
+          tokensUsed,
         };
+      }
+
+      // Track tokens from LLM response
+      if (response.text) {
+        tokensUsed += estimateTokens(response.text);
       }
 
       // If no tool calls — we have a final text response
@@ -191,12 +289,17 @@ export class AgenticLoop {
         const result = results[i];
         const toolCallId = toolCalls[i].id;
 
+        const content = result.success
+          ? result.output
+          : formatToolError(result, toolCalls[i].name);
+
+        // Track tokens from tool results
+        tokensUsed += estimateTokens(content);
+
         conversationMessages.push({
           role: "tool",
           tool_call_id: toolCallId,
-          content: result.success
-            ? result.output
-            : `Error: ${result.error}`,
+          content,
         });
       }
     }
@@ -217,6 +320,7 @@ export class AgenticLoop {
       toolResults: allToolResults,
       iterations,
       aborted: false,
+      tokensUsed,
     };
   }
 
@@ -255,6 +359,9 @@ export class AgenticLoop {
     return { text, toolCalls };
   }
 }
+
+// Export for testing
+export { estimateTokens, formatToolError };
 
 /**
  * Create an AgenticLoop instance.
