@@ -52,7 +52,36 @@ Commands:
     return;
   }
 
-  const KNOWN_COMMANDS = new Set(["auth", "init", "explain", "summarize", "chat", "history"]);
+  if (subcommand === "run") {
+    process.stdout.write(`Usage: ${name} run [options] "<prompt>"
+
+Run a single agentic task (headless, non-interactive execution).
+All tool operations are auto-approved, making this safe for CI/CD usage.
+
+Options:
+  -p, --provider <name>    Override active AI provider (openai, anthropic, gemini, ollama)
+  --model <name>           Override active model name
+  --timeout <seconds>      Set a wall-clock timeout for the run
+  --max-iterations <count> Set maximum agentic loop iterations (default: 25)
+  --json                   Emit machine-readable JSON output
+  -h, --help               display help for command
+\n`);
+    return;
+  }
+
+  if (subcommand === "doctor") {
+    process.stdout.write(`Usage: ${name} doctor [options]
+
+Check Fortify setup and diagnose issues with environment, API keys, Git, and test commands.
+
+Options:
+  --json                   Emit machine-readable JSON output
+  -h, --help               display help for command
+\n`);
+    return;
+  }
+
+  const KNOWN_COMMANDS = new Set(["auth", "init", "explain", "summarize", "chat", "history", "run", "doctor"]);
   if (KNOWN_COMMANDS.has(subcommand)) {
     process.stdout.write(`Usage: ${name} ${subcommand} [options]\n\nRun '${name} --help' for an overview of all commands.\n`);
     return;
